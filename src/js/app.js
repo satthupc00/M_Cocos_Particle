@@ -559,12 +559,13 @@
     if (newVer && manual) return offerUpdate();
     setUpd('busy', 'Đang kiểm tra…');
     let r; try { r = api ? await api.check() : { status: 'latest' }; } catch (e) { r = { status: 'error' }; }
+    if (!r || !r.status) r = { status: 'error' };
     if (r.status === 'available') { newVer = r.version; setUpd('has', 'Có bản mới v' + r.version); offerUpdate(); }
     else if (r.status === 'latest') { setUpd('ok', 'Đã là bản mới nhất'); if (manual) toast('Bạn đang dùng bản mới nhất'); }
     else { setUpd('', 'Không kiểm tra được'); if (manual) toast('Không kiểm tra được bản cập nhật. Kiểm tra lại kết nối mạng.'); }
   }
   function offerUpdate() { const t = toast(`Có bản mới <b>v${esc(newVer)}</b> <button class="btn primary" id="doUpd">Cập nhật</button>`, 0); t.querySelector('#doUpd').onclick = () => { t.innerHTML = 'Đang tải bản mới… <b id="updPct">0%</b>'; api.download(); }; }
-  if (api) api.onProgress(p => { const e = $('#updPct'); if (e) e.textContent = Math.round(p) + '%'; });
+  if (api && api.onProgress) api.onProgress(p => { const e = $('#updPct'); if (e) e.textContent = Math.round(p) + '%'; });
   $('#btnUpd').onclick = () => checkUpdate(true);
   const fmtDate = d => d ? d.split('-').reverse().join('/') : '';
   function whatsNew() {
