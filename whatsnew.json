@@ -1,14 +1,16 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "date": "2026-11-15",
   "new": [
-    "Node Tree chứa được nhiều prefab cùng lúc: kéo prefab từ Assets vào để vẽ song song, cái nằm dưới vẽ đè lên trên",
-    "Xoá node hoặc bỏ prefab khỏi Node Tree bằng phím Delete hoặc nút ✕",
-    "Ctrl+D để nhân bản node / prefab đang chọn (dùng được cả ở Assets)",
-    "Giữ và kéo trong Node Tree để đổi thứ tự",
-    "Move, Rotate, Scale cho từng node và cả node gốc (phím W / E / T, hoặc nhập số)",
-    "Hoàn tác / làm lại 10 bước (Ctrl+Z, Ctrl+Y)"
+    "Kéo file zip project vào app để nhập (cần đủ 3 folder Animation, Images, Prefabs và file meta hợp lệ)",
+    "Tab M particle: thông số hạt bằng tiếng Việt, gọn hơn; tab CC giữ thông số gốc của Cocos",
+    "Đường bay mới: vòng cung 2 điểm, vòng cung 3 điểm, vòng tròn 4 điểm và vẽ tự do bằng chuột",
+    "Lưu / mở scene (nút Scene trên Viewport): nhớ prefab đang mở và ảnh nền, báo khi file bị thiếu",
+    "Project mẫu mới dùng chuỗi hình đồng xu và có ảnh nền"
   ],
-  "improved": [],
+  "improved": [
+    "Node Tree chỉ hiện 1 prefab: bấm đúp prefab trong Assets để xem",
+    "Ảnh nền giờ là 1 file trong Assets (folder Backgrounds); kéo ảnh từ Assets vào Viewport để đặt làm nền"
+  ],
   "fixed": []
 }

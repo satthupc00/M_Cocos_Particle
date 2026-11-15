@@ -103,27 +103,44 @@
   }
 
   // ---- Preset đường bay (chỉ để xem trước) ----
-  // trả về hàm u(0..1) -> {x,y}; v = bộ số random của biến thể
   const PRESETS = {
-    arc:    { name: 'Vòng cung', color: '#3DDC8A', f: (u, v) => [0, 4 * u * (1 - u) * v.a] },
-    wave:   { name: 'Sóng chữ S', color: '#E5383B', f: (u, v) => [0, Math.sin(u * Math.PI * 2) * v.a * .6 * v.s] },
-    line:   { name: 'Thẳng', color: '#3D9BFF', f: (u, v) => [0, 4 * u * (1 - u) * v.j] },
-    spiral: { name: 'Xoắn ốc', color: '#F2B84B', f: (u, v) => { const e = Math.sin(u * Math.PI), t = u * Math.PI * 4 * v.s; return [Math.sin(t) * e * v.a * .35, (1 - Math.cos(t)) * e * v.a * .35 * v.s]; } },
-    zigzag: { name: 'Zigzag', color: '#7B5CFF', f: (u, v) => { const t = u * 3; const tri = 1 - 4 * Math.abs((t % 1) - .5); return [0, tri * Math.sin(u * Math.PI) * v.a * .5 * v.s]; } },
-    loop:   { name: 'Vòng lại', color: '#22C3A6', f: (u, v) => [-Math.sin(u * Math.PI * 2) * v.a * .6, (1 - Math.cos(u * Math.PI * 2)) * v.a * .5 * v.s] },
+    arc2:   { name: 'Vòng cung 2 điểm', color: '#3DDC8A', icon: 'M8 40 Q40 -10 72 40' },
+    arc3:   { name: 'Vòng cung 3 điểm', color: '#3D9BFF', icon: 'M8 38 Q22 -14 72 30' },
+    circle: { name: 'Vòng tròn', color: '#F2B84B', icon: 'M40 5a18 18 0 1 0 .1 0' },
+    free:   { name: 'Vẽ tự do', color: '#E5383B', icon: 'M6 30c10-22 18 12 28-6s14-14 20 0 10 10 20-10' },
   };
   function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  // biến thể 0 luôn là đường gốc; các biến thể sau lệch ngẫu nhiên trong khoảng "Độ random"
   function variant(proj, i) {
-    const r = mulberry(1234 + i * 977 + (proj.seed || 0));
-    const j = (r() * 2 - 1) * proj.rand;
-    return { a: proj.amp + j, j, s: (proj.preset === 'arc' || proj.preset === 'line') ? 1 : (r() < .5 ? -1 : 1), ex: (r() * 2 - 1) * proj.rand * .5, ey: (r() * 2 - 1) * proj.rand * .5 };
+    if (!i) return { j: 0, ex: 0, ey: 0, jx: 0, jy: 0 };
+    const r = mulberry(1234 + i * 977), q = () => (r() * 2 - 1) * proj.rand;
+    return { j: q(), ex: q() * .5, ey: q() * .5, jx: q(), jy: q() };
+  }
+  const lens = new WeakMap();
+  function freeAt(pts, u) {
+    let L = lens.get(pts); if (!L || L.n !== pts.length) { L = { n: pts.length, c: [0] }; for (let i = 1; i < pts.length; i++) L.c.push(L.c[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y)); lens.set(pts, L); }
+    const tot = L.c[L.c.length - 1], d = u * tot; let i = 1; while (i < pts.length - 1 && L.c[i] < d) i++;
+    const a = pts[i - 1], b = pts[i], seg = L.c[i] - L.c[i - 1] || 1, t = (d - L.c[i - 1]) / seg, dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+    return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / l, ny: dx / l };
   }
   function pathPoint(proj, v, u) {
     const ax = proj.sx, ay = proj.sy, bx = proj.ex + v.ex, by = proj.ey + v.ey;
-    const dx = bx - ax, dy = by - ay, l = Math.hypot(dx, dy) || 1, tx = dx / l, ty = dy / l;
-    let nx = -ty, ny = tx; if (ny < 0) { nx = -nx; ny = -ny; }   // pháp tuyến luôn hướng lên
-    const [al, no] = PRESETS[proj.preset].f(u, v);
-    return { x: ax + dx * u + tx * al + nx * no, y: ay + dy * u + ty * al + ny * no };
+    if (proj.preset === 'arc3') {
+      const cx = proj.cx + v.jx, cy = proj.cy + v.jy, px = 2 * cx - (ax + bx) / 2, py = 2 * cy - (ay + by) / 2, w = 1 - u;
+      return { x: w * w * ax + 2 * w * u * px + u * u * bx, y: w * w * ay + 2 * w * u * py + u * u * by };
+    }
+    if (proj.preset === 'circle') {
+      const P = proj.circle, mx = (P[0].x + P[1].x + P[2].x + P[3].x) / 4, my = (P[0].y + P[1].y + P[2].y + P[3].y) / 4;
+      const rad = (P.reduce((a, q) => a + Math.hypot(q.x - mx, q.y - my), 0) / 4) || 1, k = 1 + v.j / rad;
+      const g = i => { const q = P[(i % 4 + 4) % 4]; return { x: mx + (q.x - mx) * k, y: my + (q.y - my) * k }; };
+      const f = Math.min(3.9999, u * 4), s = Math.floor(f), t = f - s, p0 = g(s - 1), p1 = g(s), p2 = g(s + 1), p3 = g(s + 2), t2 = t * t, t3 = t2 * t;
+      const cr = (a, b, c, d) => .5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (3 * b - a - 3 * c + d) * t3);
+      return { x: cr(p0.x, p1.x, p2.x, p3.x), y: cr(p0.y, p1.y, p2.y, p3.y) };
+    }
+    if (proj.preset === 'free' && proj.free && proj.free.length > 1) { const q = freeAt(proj.free, u), o = Math.sin(u * Math.PI) * v.j * .5; return { x: q.x + q.nx * o, y: q.y + q.ny * o }; }
+    const dx = bx - ax, dy = by - ay, l = Math.hypot(dx, dy) || 1; let nx = -dy / l, ny = dx / l; if (ny < 0) { nx = -nx; ny = -ny; }   // pháp tuyến luôn hướng lên
+    const no = 4 * u * (1 - u) * (proj.preset === 'free' ? 0 : proj.amp + v.j);
+    return { x: ax + dx * u + nx * no, y: ay + dy * u + ny * no };
   }
   const EASE = { linear: u => u, in: u => u * u, out: u => 1 - (1 - u) * (1 - u), inout: u => u < .5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u) };
 

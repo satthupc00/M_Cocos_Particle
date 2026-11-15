@@ -145,3 +145,5 @@ input.num[type=number]:not(:focus){cursor:ew-resize}
 #treeList{position:relative}
 .dropline{position:absolute;left:6px;right:6px;height:2px;background:var(--red);border-radius:2px;pointer-events:none;display:none;z-index:3}
 .row-item{touch-action:none}
+.sec>b.sub{margin:12px 0 6px;color:var(--warn)}.sec>b.sub:first-of-type{margin-top:4px}
+.ptab{margin-bottom:8px}.ptab button{font-weight:600}

@@ -26,7 +26,7 @@
 
 <div class="body">
   <section class="pane tree">
-    <h3>Node Tree <span class="sp"><button class="mini" id="btnAddNode" title="Thêm emitter vào prefab đang chọn" aria-label="Thêm emitter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></span></h3>
+    <h3>Node Tree <span class="sp"><button class="mini" id="btnAddNode" title="Thêm emitter" aria-label="Thêm emitter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></span></h3>
     <div class="scroll" id="treeList" data-drop="tree"></div>
   </section>
 
@@ -39,11 +39,12 @@
       <button class="btn" id="btnFit" title="Vừa khung (F)">Fit</button>
       <button class="btn" id="btnBg" title="Đổi màu nền viewport">Nền</button>
       <button class="btn hide" id="btnPath" title="Ẩn / hiện đường bay và điểm A, B trên khung xem trước">Ẩn đường bay</button>
+      <button class="btn" id="btnScene" title="Lưu / mở scene (prefab đang mở + ảnh nền)">Scene</button>
       <button class="btn" id="btnRef" title="Đặt 1 ảnh làm nền để ướm thử (không xuất vào Cocos)">Ảnh nền</button>
       <span class="zoom" id="zoom">100%</span>
     </div>
     <div class="refbar hide" id="refBar"><span>Ảnh nền</span><label>Tỉ lệ <input class="num" id="refScale" type="number" step="any" min="0.01" title="Phóng to / thu nhỏ ảnh nền"></label><label>Độ rõ % <input class="num" id="refOp" type="number" min="0" max="100" title="Độ rõ của ảnh nền (0–100)"></label><button class="btn primary" id="refApply" title="Khoá ảnh nền tại chỗ">Apply</button><button class="btn" id="refDel" title="Gỡ ảnh nền">Gỡ</button></div>
-    <div class="empty hide" id="empty"><b>Chưa mở prefab nào</b><span>Kéo prefab từ Assets vào đây, hoặc bấm đúp vào prefab</span><span><kbd>Space</kbd> phát/dừng · <kbd>R</kbd> chạy lại · <kbd>F</kbd> vừa khung · <kbd>Ctrl+E</kbd> xuất zip</span></div>
+    <div class="empty hide" id="empty"><b>Chưa mở prefab nào</b><span>Bấm đúp vào 1 prefab trong Assets để xem, hoặc kéo file zip project vào app</span><span><kbd>Space</kbd> phát/dừng · <kbd>R</kbd> chạy lại · <kbd>F</kbd> vừa khung · <kbd>Ctrl+E</kbd> xuất zip</span></div>
     <div class="hint" id="hint">Lăn chuột: zoom · Giữ chuột phải hoặc phím cách + kéo: pan · Kéo chuột trái: di chuyển node đang chọn</div>
   </section>
 
@@ -65,10 +66,13 @@
 <footer class="foot"><span id="st"></span><span id="st2"></span><span class="credit">Created by Mondiro</span></footer>
 </div>
 <input type="file" id="fileImg" accept="image/png,image/jpeg,image/webp" multiple class="hide">
+<input type="file" id="fileZip" accept=".zip" multiple class="hide">
 <input type="file" id="fileDir" webkitdirectory multiple class="hide">
 <script src="vendor/jszip.min.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/render.js"></script>
 <script src="js/exporter.js"></script>
+<script src="js/importer.js"></script>
+<script src="js/sample.js"></script>
 <script src="js/app.js"></script>
 </body></html>
