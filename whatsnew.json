@@ -1,9 +1,9 @@
 {
-  "version": "1.4.3",
+  "version": "1.4.4",
   "date": "2026-11-15",
   "new": [],
   "improved": [
-    "Logo nét hơn ở cỡ lớn, và có bản vẽ gọn riêng cho cỡ nhỏ trên taskbar"
+    "Logo dùng chung một bản vẽ gọn cho mọi kích cỡ"
   ],
   "fixed": []
 }
