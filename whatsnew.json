@@ -1,16 +1,9 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "date": "2026-11-15",
   "new": [
-    "Kéo file zip project vào app để nhập (cần đủ 3 folder Animation, Images, Prefabs và file meta hợp lệ)",
-    "Tab M particle: thông số hạt bằng tiếng Việt, gọn hơn; tab CC giữ thông số gốc của Cocos",
-    "Đường bay mới: vòng cung 2 điểm, vòng cung 3 điểm, vòng tròn 4 điểm và vẽ tự do bằng chuột",
-    "Lưu / mở scene (nút Scene trên Viewport): nhớ prefab đang mở và ảnh nền, báo khi file bị thiếu",
-    "Project mẫu mới dùng chuỗi hình đồng xu và có ảnh nền"
+    "Xoá emitter trong Node Tree: nút ✕ trên dòng emitter hoặc phím Delete (Ctrl+Z để lấy lại)"
   ],
-  "improved": [
-    "Node Tree chỉ hiện 1 prefab: bấm đúp prefab trong Assets để xem",
-    "Ảnh nền giờ là 1 file trong Assets (folder Backgrounds); kéo ảnh từ Assets vào Viewport để đặt làm nền"
-  ],
+  "improved": [],
   "fixed": []
 }

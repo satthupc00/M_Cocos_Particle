@@ -572,7 +572,7 @@
     if (!list.length) { $('#treeList').innerHTML = '<div class="note" style="padding:8px 10px">Chưa mở prefab. Bấm đúp vào 1 prefab trong Assets.</div>'; return; }
     $('#treeList').innerHTML = list.map(pf =>
       `<div class="row-item ${pf === c && !sn ? 'sel' : ''} ${pf.hidden ? 'off' : ''}" data-pf="${pf.id}" data-nid="" data-key="${pf.id}" title="Bấm đúp để đổi tên · giữ và kéo để đổi thứ tự">${pf.kind === 'particle' ? IC.root : IC.proj}<span>${esc(pf.name)}</span><button class="mini" data-act="eye" title="Ẩn / hiện trong xem trước">${IC.eye}</button></div>` +
-      pf.nodes.map(n => `<div class="row-item ${n === sn ? 'sel' : ''} ${n.hidden || pf.hidden ? 'off' : ''}" style="padding-left:26px" data-pf="${pf.id}" data-nid="${n.id}" data-key="${n.id}" title="Bấm đúp để đổi tên · giữ và kéo để đổi thứ tự">${IC[n.type]}<span>${esc(n.name)}</span><button class="mini" data-act="eye" title="Ẩn / hiện trong xem trước">${IC.eye}</button></div>`).join('')).join('');
+      pf.nodes.map(n => `<div class="row-item ${n === sn ? 'sel' : ''} ${n.hidden || pf.hidden ? 'off' : ''}" style="padding-left:26px" data-pf="${pf.id}" data-nid="${n.id}" data-key="${n.id}" title="Bấm đúp để đổi tên · giữ và kéo để đổi thứ tự">${IC[n.type]}<span>${esc(n.name)}</span><button class="mini" data-act="eye" title="Ẩn / hiện trong xem trước">${IC.eye}</button>${n.type === 'emitter' ? `<button class="mini" data-act="del" title="Xoá emitter (Delete)">${IC.x}</button>` : ''}</div>`).join('')).join('');
   }
   // vẽ lại danh sách có animation trượt (FLIP) theo data-key
   function flipRender(box, render) {
@@ -606,7 +606,7 @@
   // bấm chọn / nút ẩn / nút xoá
   $('#treeList').addEventListener('click', e => {
     const r = e.target.closest('[data-pf]'); if (!r) return; const pf = pfOf(r.dataset.pf); if (!pf) return; const n = pf.nodes.find(x => x.id === r.dataset.nid), b = e.target.closest('[data-act]');
-    if (b) { const t = n || pf; t.hidden = !t.hidden; dirty(); return renderTree(); }
+    if (b) { if (b.dataset.act === 'del') { if (n && n.type === 'emitter') delNode(pf, n.id); return; } const t = n || pf; t.hidden = !t.hidden; dirty(); return renderTree(); }
   });
   $('#treeList').addEventListener('dblclick', async e => {
     const r = e.target.closest('[data-pf]'); if (!r || e.target.closest('[data-act]')) return; const pf = pfOf(r.dataset.pf); if (!pf) return;
@@ -841,6 +841,8 @@
     const tk = { w: 'move', e: 'rotate', t: 'scale' }[e.key.toLowerCase()]; if (tk) setTool(tk);
     if (e.key === 'Delete') {
       const a = area === 'assets' ? byId(S.selAsset) : area === 'ftree' ? byId(S.folder) : null;
+      const dn = area === 'tree' ? selNode() : null;
+      if (dn && dn.type === 'emitter') return delNode(cur(), dn.id);
       if (a && a !== S.root) confirmDlg('Xoá', `Xoá "${esc(a.name)}"${a.type === 'folder' ? ' và mọi thứ bên trong' : ''}?`).then(ok => { if (ok) { S.selAsset = null; removeAsset(a); } });
     }
   });
