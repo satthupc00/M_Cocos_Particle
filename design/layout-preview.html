@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mon ParticleFX - Layout preview</title>
+<style>
+:root{--chrome:#1F2126;--panel:#26292F;--line:#363A42;--hover:#2F333A;--stage:#2B2D31;--text:#E8E9EC;--muted:#8D929C;
+--red:#E5383B;--warn:#F2B84B;--selected-bg:#3A2426;--ease-out:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);--t-fast:.12s;--t-med:.22s}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--chrome);color:var(--text);font:13px/1.4 "Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none}
+:focus-visible{outline:2px solid var(--red);outline-offset:1px}
+button,select,input,.chip,.row-item{font:inherit;color:inherit;transition:background-color var(--t-fast),border-color var(--t-fast),color var(--t-fast),box-shadow var(--t-med) var(--ease-out),transform var(--t-med) var(--ease-out)}
+button:not(:disabled):active{transform:scale(.95);transition-duration:.06s}
+.app{display:flex;flex-direction:column;height:100%}
+.top{display:flex;align-items:center;gap:16px;padding:10px 150px 10px 14px;border-bottom:1px solid var(--line);min-height:58px;flex:0 0 auto}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:34px;height:34px;border-radius:8px;border:1.5px dashed #5A5F69;display:grid;place-items:center;color:var(--muted);font-size:9px}
+.brand-name{font-size:17px;font-weight:700;line-height:34px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.brand-name .m{color:var(--red)}.brand-name .a{color:#fff}
+.latest{font-size:10.5px;font-weight:800;color:#2EB872;background:#2eb87224;padding:1px 7px;border-radius:20px;line-height:16px}
+.tabs{display:flex;position:relative;gap:4px;margin-left:10px;align-self:stretch;align-items:center}
+.tab{background:none;border:0;padding:8px 14px;color:var(--muted);font-weight:600;cursor:pointer;border-radius:6px}
+.tab:hover,.tab.on{color:#fff}
+.tabbar{position:absolute;bottom:-10px;height:2px;background:var(--red);border-radius:2px;transition:left var(--t-med) var(--ease-out),width var(--t-med) var(--ease-out)}
+.tools{display:flex;gap:8px;margin-left:auto;align-items:center}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.btn:hover{border-color:var(--red);transform:translateY(-1px)}
+.btn.primary{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.btn.primary:hover{background:#F04447;box-shadow:0 6px 16px rgba(229,56,59,.35)}
+.ibtn{width:32px;height:32px;padding:0;justify-content:center}
+.ibtn svg,.btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.upd{color:#2EB872}
+.num{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%;min-width:0;font-variant-numeric:tabular-nums;color:var(--warn)}
+.num:hover{border-color:#5A5F69}.num:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 3px rgba(229,56,59,.18)}
+.cv{display:flex;align-items:center;gap:6px;color:var(--muted)}.cv .num{width:58px}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:230px 1fr 340px;grid-template-rows:1fr 210px}
+.pane{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel)}
+.pane h3{margin:0;padding:7px 10px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.pane h3 .sp{margin-left:auto;display:flex;gap:4px}
+.mini{background:none;border:1px solid transparent;border-radius:5px;width:22px;height:22px;padding:0;display:grid;place-items:center;cursor:pointer;color:var(--muted)}
+.mini:hover{border-color:var(--red);color:#fff}.mini svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.tree{grid-column:1;grid-row:1;border-right:1px solid var(--line)}
+.view{grid-column:2;grid-row:1;background:var(--stage);position:relative}
+.assets{grid-column:1/3;grid-row:2;border-top:1px solid var(--line)}
+.props{grid-column:3;grid-row:1/3;border-left:1px solid var(--line)}
+.scroll{overflow:auto;flex:1;min-height:0}
+.scroll::-webkit-scrollbar{width:9px;height:9px}.scroll::-webkit-scrollbar-thumb{background:#474C55;border-radius:5px}
+.row-item{display:flex;align-items:center;gap:6px;padding:5px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-item:hover{background:var(--hover);transform:translateX(3px);box-shadow:inset 3px 0 var(--red)}
+.row-item.sel{background:var(--selected-bg);box-shadow:inset 3px 0 var(--red)}
+.row-item svg{width:14px;height:14px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}
+.row-item .fold{color:var(--warn)}.i1{padding-left:26px}.i2{padding-left:42px}
+.vbar{position:absolute;left:10px;top:10px;right:10px;display:flex;gap:6px;align-items:center;z-index:2;pointer-events:none}
+.vbar>*{pointer-events:auto}.vbar .btn{background:#1F2126cc;backdrop-filter:blur(6px);padding:4px 9px}
+.vbar .zoom{color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto;background:#1F2126cc;padding:4px 9px;border-radius:6px}
+canvas{width:100%;height:100%;display:block}
+.hint{position:absolute;left:12px;bottom:10px;color:var(--muted);font-size:11px}
+.assets .inner{display:grid;grid-template-columns:230px 1fr;flex:1;min-height:0}
+.assets .ftree{border-right:1px solid var(--line)}
+.grid{display:flex;flex-wrap:wrap;gap:8px;padding:10px;align-content:flex-start}
+.thumb{width:74px;text-align:center;font-size:10.5px;color:var(--muted);cursor:grab;border-radius:6px;padding:5px 3px;border:1px solid transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thumb:hover{border-color:var(--red);transform:translateY(-1px);color:#fff}
+.thumb i{display:block;width:46px;height:46px;margin:0 auto 4px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE680,#E8930A)}
+.thumb i.pf{border-radius:8px;background:linear-gradient(135deg,#3D9BFF,#1747B8)}.thumb i.an{border-radius:8px;background:linear-gradient(135deg,#7B5CFF,#4B2BD6)}
+.ctx{position:absolute;left:96px;bottom:86px;background:var(--chrome);border:1px solid var(--line);border-radius:8px;padding:4px;box-shadow:0 10px 24px rgba(0,0,0,.45);z-index:5;width:190px}
+.ctx div{padding:6px 10px;border-radius:5px;cursor:pointer}.ctx div:hover{background:var(--selected-bg)}.ctx .hot{color:#fff;background:var(--selected-bg);box-shadow:inset 3px 0 var(--red)}
+.sec{border-bottom:1px solid var(--line);padding:8px 10px 10px}
+.sec>b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.f{display:grid;grid-template-columns:112px 1fr 1fr;gap:6px;align-items:center;margin-bottom:5px}
+.f label{color:#C5C8CE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.f .w2{grid-column:2/4}
+.f small{color:var(--muted)}
+.seg{display:flex;background:var(--chrome);border:1px solid var(--line);border-radius:6px;padding:2px;gap:2px}
+.seg button{flex:1;background:none;border:0;border-radius:4px;padding:5px 6px;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--selected-bg);color:#fff;box-shadow:inset 0 0 0 1px var(--red)}
+.slot{display:flex;gap:8px;align-items:center;border:1.5px dashed #5A5F69;border-radius:6px;padding:6px;cursor:pointer}
+.slot:hover{border-color:var(--red);background:rgba(229,56,59,.08)}
+.slot i{width:34px;height:34px;border-radius:5px;background:#17191d;display:grid;place-items:center;flex:0 0 auto}
+.slot i::after{content:'';width:14px;height:14px;border-radius:50%;background:#fff}
+.slot span{color:var(--muted);font-size:11.5px;line-height:1.3}.slot span b{color:var(--text);display:block;font-weight:600}
+.sw{height:24px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer}.sw.k{background:#000}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.chip{background:var(--chrome);border:1px solid var(--line);border-radius:6px;padding:4px 4px 5px;text-align:center;cursor:pointer;font-size:11px;color:var(--muted)}
+.chip:hover{border-color:var(--red);transform:translateY(-1px)}.chip.on{background:var(--selected-bg);border-color:var(--red);color:#fff}
+.chip svg{width:100%;height:44px;fill:none;stroke-width:2.2;stroke-linecap:round}
+.foot{display:flex;align-items:center;gap:14px;padding:6px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:11px;flex:0 0 auto}
+.credit{color:#6B707A;font-size:11px;white-space:nowrap;margin-left:auto}
+.hide{display:none!important}
+.note{position:absolute;right:10px;bottom:10px;background:#1F2126e6;border:1px solid var(--line);border-left:3px solid var(--red);border-radius:6px;padding:6px 10px;font-size:11px;color:var(--muted);max-width:260px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style></head><body>
+<div class="app">
+<header class="top">
+  <div class="brand"><div class="brand-icon">icon</div>
+    <div class="brand-name"><span><span class="m">Mon</span> <span class="a">ParticleFX</span></span><span class="latest">latest</span></div></div>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-t="ps">Particle System</button>
+    <button class="tab" data-t="pj">Projectile</button>
+    <i class="tabbar" id="tabbar"></i>
+  </div>
+  <div class="tools">
+    <div class="cv" title="Kích thước khung canvas">Canvas <input class="num" value="960"> × <input class="num" value="640"></div>
+    <button class="btn primary" title="Xuất zip cho Cocos (Ctrl+E) — chọn 2.1.3 hoặc 3.6.3"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Xuất zip</button>
+    <button class="btn ibtn" title="Cài đặt"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+    <button class="btn ibtn upd" title="Kiểm tra cập nhật · Đã là bản mới nhất"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12A9 9 0 0 1 18.5 5.8L21 8M21 3v5h-5M3 21v-5h5"/></svg></button>
+  </div>
+</header>
+
+<div class="body">
+  <section class="pane tree">
+    <h3>Node Tree <span class="sp"><button class="mini" title="Thêm emitter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></span></h3>
+    <div class="scroll" id="treeList"></div>
+  </section>
+
+  <section class="view">
+    <div class="vbar">
+      <button class="btn" title="Phát / dừng (Space)">▶ Phát</button>
+      <button class="btn" title="Chạy lại từ đầu (R)">↻ Chạy lại</button>
+      <button class="btn" title="Vừa khung (F)">Fit</button>
+      <button class="btn" title="Đổi nền viewport">Nền</button>
+      <span class="zoom">100%</span>
+    </div>
+    <canvas id="cv"></canvas>
+    <div class="hint">Lăn chuột: zoom · Giữ chuột phải / phím cách + kéo: pan · Kéo prefab từ Assets vào đây để xem</div>
+    <div class="note">Khung đỏ nhạt = canvas 960×640. Hạt bay ra ngoài khung vẫn hiển thị.</div>
+  </section>
+
+  <section class="pane assets">
+    <h3>Assets <span class="sp"><button class="mini" title="Thêm folder"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></span></h3>
+    <div class="inner">
+      <div class="scroll ftree">
+        <div class="row-item"><svg class="fold" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg>assets</div>
+        <div class="row-item i1 sel"><svg class="fold" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg>9683_VFX_Coin</div>
+        <div class="row-item i2"><svg class="fold" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg>9683_Animations</div>
+        <div class="row-item i2"><svg class="fold" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg>9683_Images</div>
+        <div class="row-item i2"><svg class="fold" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg>9683_Prefabs</div>
+      </div>
+      <div class="scroll"><div class="grid" id="grid"></div></div>
+    </div>
+    <div class="ctx"><div>Tạo folder con</div><div class="hot">Nhập tên tiền tố…</div><div>Đổi tên</div><div>Xoá</div></div>
+  </section>
+
+  <section class="pane props">
+    <h3>Properties <span style="color:var(--text);text-transform:none;letter-spacing:0" id="selName">Coin_1</span></h3>
+    <div class="scroll">
+      <div id="psProps">
+        <div class="sec"><b>Kiểu hiệu ứng</b>
+          <div class="f"><label>Mode</label><div class="seg w2"><button class="on">Bung từ giữa</button><button>Rơi từ trên</button></div></div>
+          <div class="f"><label>Phát</label><div class="seg w2"><button>1 lần</button><button class="on">Loop mãi</button></div></div>
+        </div>
+        <div class="sec"><b>Hình ảnh</b>
+          <div class="slot" title="Kéo ảnh từ ngoài hoặc từ Assets vào đây"><i></i><span><b>Sprite Frame</b>Kéo ảnh vào đây (mặc định: chấm tròn trắng)</span></div>
+          <div class="f" style="margin-top:8px"><label>Chuỗi hình</label><button class="btn w2" title="Chọn folder chuỗi PNG — tự tạo AnimationClip và gán cho mọi emitter">Import folder chuỗi hình…</button></div>
+          <div class="f"><label>Tốc độ (fps)</label><input class="num" value="30"><small>15 hình</small></div>
+        </div>
+        <div class="sec"><b>ParticleSystem (tên đúng như Cocos)</b><div id="fields"></div></div>
+      </div>
+      <div id="pjProps" class="hide">
+        <div class="sec"><b>Preset đường bay</b><div class="presets" id="presets"></div></div>
+        <div class="sec"><b>Đường bay</b>
+          <div class="f"><label>Điểm đầu</label><input class="num" value="-300"><input class="num" value="-200"></div>
+          <div class="f"><label>Điểm cuối</label><input class="num" value="300"><input class="num" value="150"></div>
+          <div class="f"><label>Thời gian bay (s)</label><input class="num" value="0.8"><small>± 0.1</small></div>
+          <div class="f"><label>Độ random</label><input class="num" value="40"><small>px</small></div>
+          <div class="f"><label>Số biến thể</label><input class="num" value="3"><small>đường / preset</small></div>
+          <div class="f"><label>Xoay theo hướng bay</label><div class="seg w2"><button class="on">Có</button><button>Không</button></div></div>
+        </div>
+        <div class="sec"><b>Head (đầu đạn)</b>
+          <div class="slot"><i></i><span><b>Sprite / chuỗi hình</b>Kéo ảnh hoặc folder chuỗi hình vào đây</span></div>
+        </div>
+        <div class="sec"><b>Trail (đuôi) — ParticleSystem</b>
+          <div class="slot"><i></i><span><b>Sprite Frame</b>Kéo ảnh vào đây</span></div>
+          <div style="color:var(--muted);font-size:11.5px;margin-top:8px">Chọn node “Trail” ở Node Tree để chỉnh đủ thông số ParticleSystem như tab Particle System.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer class="foot"><span id="st">Particle System · 2 emitter · 30 hạt</span><span>Xuất: 9683_VFX_Coin_213.zip / _363.zip</span><span class="credit">Created by Mondiro</span></footer>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const F=[['Duration','-1'],['Emission Rate','5'],['Life','2.5','0'],['Total Particles','15'],['Start Color','c'],['Start Color Var','k'],['End Color','c'],['End Color Var','k'],
+['Angle','0','360'],['Start Size','75','0'],['End Size','75','0'],['Start Spin','0','360'],['End Spin','360','90'],['Source Pos','0','0'],['Pos Var','0','0'],
+['Position Type','s:FREE'],['Emitter Mode','s:GRAVITY'],['Gravity','0','-600'],['Speed','900','0'],['Tangential Accel','0','0'],['Radial Accel','0','0'],['Rotation Is Dir','s:false'],
+['Src Blend','s:SRC_ALPHA'],['Dst Blend','s:ONE_MINUS_SRC_ALPHA']];
+$('#fields').innerHTML=F.map(f=>{let v=f[1],b;
+ if(v==='c'||v==='k')b=`<div class="sw w2 ${v==='k'?'k':''}"></div>`;
+ else if(v.startsWith('s:'))b=`<select class="num w2"><option>${v.slice(2)}</option></select>`;
+ else b=f[2]!==undefined?`<input class="num" value="${v}"><input class="num" value="${f[2]}" title="Var / Y">`:`<input class="num w2" value="${v}">`;
+ return `<div class="f"><label title="${f[0]}">${f[0]}</label>${b}</div>`}).join('');
+const P=[['Vòng cung','M6 40 Q40 -14 74 40','#3DDC8A'],['Sóng chữ S','M4 26 C24 2 36 46 56 24 S70 14 76 14','#E5383B'],['Thẳng','M8 38 L72 8','#3D9BFF'],
+['Xoắn ốc','M8 36 C30 44 44 4 30 14 S46 40 72 10','#F2B84B'],['Zigzag','M6 36 L24 12 L40 34 L56 10 L74 30','#7B5CFF'],['Vòng lại','M10 38 C60 44 70 0 36 8 S20 30 72 34','#22C3A6']];
+$('#presets').innerHTML=P.map((p,i)=>`<div class="chip ${i?'':'on'}"><svg viewBox="0 0 80 46"><path d="${p[1]}" stroke="${p[2]}"/><path d="${p[1]}" stroke="${p[2]}" opacity=".35" transform="translate(0,5) scale(1,.8)"/></svg>${p[0]}</div>`).join('');
+const ic={n:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>',r:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>'};
+const trees={ps:[['9683_VFX_Coin_BigWin',0,'r'],['Coin_1',1,'n',1],['Coin_2',1,'n']],pj:[['9775_Projectile_Wild',0,'r'],['Trail',1,'n'],['Head',1,'n',1]]};
+const grids={ps:[['pf','Coin_BigWin'],['an','Coin_Loop'],['','Coin_00'],['','Coin_01'],['','Coin_02'],['','Coin_03'],['','Coin_04'],['','Coin_05']],pj:[['pf','Projectile_Wild'],['an','Head_Loop'],['','Head_00'],['','Head_01'],['','Sparkle'],['','Trail_1']]};
+let tab='ps';
+function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+ const b=document.querySelector('.tab.on'),bar=$('#tabbar');bar.style.left=b.offsetLeft+'px';bar.style.width=b.offsetWidth+'px';
+ $('#psProps').classList.toggle('hide',t!=='ps');$('#pjProps').classList.toggle('hide',t!=='pj');
+ $('#treeList').innerHTML=trees[t].map(n=>`<div class="row-item ${n[1]?'i1':''} ${n[3]?'sel':''}">${ic[n[2]]}${n[0]}</div>`).join('');
+ $('#grid').innerHTML=grids[t].map(g=>`<div class="thumb"><i class="${g[0]}"></i>${g[1]}</div>`).join('');
+ $('#selName').textContent=t==='ps'?'Coin_1':'Head';
+ $('#st').textContent=t==='ps'?'Particle System · 2 emitter · 30 hạt':'Projectile · preset Vòng cung · 3 biến thể';parts=[]}
+$('#tabs').onclick=e=>{if(e.target.dataset.t)setTab(e.target.dataset.t)};
+const cv=$('#cv'),g=cv.getContext('2d');let parts=[],t0=performance.now();
+function frame(now){const dpr=devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;if(cv.width!==w*dpr){cv.width=w*dpr;cv.height=h*dpr}
+ g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);const cx=w/2,cy=h/2+10,s=Math.min((w-80)/960,(h-90)/640),cw=960*s,ch=640*s;
+ g.strokeStyle='#3a3d44';g.lineWidth=1;for(let x=cx%50;x<w;x+=50){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke()}for(let y=cy%50;y<h;y+=50){g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke()}
+ g.strokeStyle='#E5383B';g.lineWidth=1.5;g.strokeRect(cx-cw/2,cy-ch/2,cw,ch);g.fillStyle='#8D929C';g.font='11px Segoe UI';g.fillText('Canvas 960 × 640',cx-cw/2+6,cy-ch/2-6);
+ const dt=Math.min(.05,(now-t0)/1000);t0=now;
+ if(tab==='ps'){if(Math.random()<.5){const a=Math.random()*6.28,v=380*s;parts.push({x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:2.2,r:Math.random()*6})}
+  parts=parts.filter(p=>(p.l-=dt)>0);for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=260*s*dt;p.r+=dt*5;g.save();g.translate(p.x,p.y);g.rotate(p.r);g.scale(1,.35+.65*Math.abs(Math.cos(p.r*1.7)));
+   const gr=g.createRadialGradient(-4,-5,2,0,0,17*s+6);gr.addColorStop(0,'#FFE680');gr.addColorStop(1,'#E8930A');g.fillStyle=gr;g.beginPath();g.arc(0,0,14*s+5,0,6.3);g.fill();g.restore()}}
+ else{const T=(now/1000)%1.6/1.2,cols=['#3DDC8A','#3DDC8A','#3DDC8A'];
+  [[-.9,0],[0,-.25],[.9,.1]].forEach((o,i)=>{const x0=cx-cw*.36,y0=cy+ch*.32,x1=cx+cw*.36+o[0]*30,y1=cy+ch*.2,hx=(x0+x1)/2+o[0]*60,hy=cy-ch*(.75+o[1]);
+   g.setLineDash([5,5]);g.strokeStyle=cols[i]+'88';g.lineWidth=1.5;g.beginPath();g.moveTo(x0,y0);g.quadraticCurveTo(hx,hy,x1,y1);g.stroke();g.setLineDash([]);
+   const u=Math.min(1,Math.max(0,T-i*.08));if(u>0&&u<1)for(let k=0;k<14;k++){const q=Math.max(0,u-k*.018),a=1-q,x=a*a*x0+2*a*q*hx+q*q*x1,y=a*a*y0+2*a*q*hy+q*q*y1;
+    g.globalAlpha=k?(.5-k*.035):1;g.fillStyle=k?'#F2E24B':'#fff';g.beginPath();g.arc(x,y,k?9-k*.5:8,0,6.3);g.fill()}g.globalAlpha=1})}
+ requestAnimationFrame(frame)}
+setTab('ps');requestAnimationFrame(frame);
+</script></body></html>
