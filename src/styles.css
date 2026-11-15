@@ -129,3 +129,8 @@ kbd{background:var(--chrome);border:1px solid var(--line);border-radius:4px;padd
 .dlg ul{margin:2px 0 4px;padding-left:18px;color:#C5C8CE}.dlg h5{margin:6px 0 0;font-size:12px;color:var(--warn)}
 .verrow{display:flex;align-items:center;gap:8px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+input.num[type=number]:not(:focus){cursor:ew-resize}
+.scrubbing,.scrubbing *{cursor:ew-resize!important}
+.vbar .btn.on{border-color:var(--red);color:#fff}
+.refbar{position:absolute;left:10px;top:48px;z-index:2;display:flex;gap:8px;align-items:center;background:#1F2126e6;border:1px solid var(--line);border-left:3px solid var(--red);border-radius:6px;padding:5px 8px;animation:popin .2s var(--ease-out)}
+.refbar label{display:flex;gap:5px;align-items:center;color:var(--muted);white-space:nowrap}.refbar .num{width:58px}.refbar .btn{padding:4px 10px}

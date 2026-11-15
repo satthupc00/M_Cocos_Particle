@@ -8,7 +8,7 @@
   const v2 = (x, y) => ({ __type__: 'cc.Vec2', x, y });
   const v3 = (x, y, z) => ({ __type__: 'cc.Vec3', x, y, z });
   const J = o => JSON.stringify(o, null, 2);
-  const trimOf = a => a.trim || { x: 0, y: 0, w: a.w, h: a.h };
+  const trimOf = a => ({ x: 0, y: 0, w: a.w, h: a.h });   // không cắt mép: mọi hình trong chuỗi giữ cùng kích thước
 
   // ---------- tham chiếu sprite frame ----------
   const sf2 = img => img ? { __uuid__: img.sub } : null;
@@ -41,11 +41,11 @@
       rotatePerS: s.rotatePerS, rotatePerSVar: s.rotatePerSVar, '_N$preview': true, _id: ''
     };
   }
-  function node2(name, parent, level, x, y, w, h) {
+  function node2(name, parent, level, x, y, w, h, sc = 1) {
     return {
       __type__: 'cc.Node', _name: name, _objFlags: 0, _parent: parent, _children: [], _active: true, _level: level, _components: [], _prefab: null,
       _opacity: 255, _color: { __type__: 'cc.Color', r: 255, g: 255, b: 255, a: 255 }, _contentSize: { __type__: 'cc.Size', width: w, height: h },
-      _anchorPoint: v2(0.5, 0.5), _position: v3(x, y, 0), _scale: v3(1, 1, 1), _eulerAngles: v3(0, 0, 0), _skewX: 0, _skewY: 0, _is3DNode: false, groupIndex: 0, _id: ''
+      _anchorPoint: v2(0.5, 0.5), _position: v3(x, y, 0), _scale: v3(sc, sc, 1), _eulerAngles: v3(0, 0, 0), _skewX: 0, _skewY: 0, _is3DNode: false, groupIndex: 0, _id: ''
     };
   }
   const anim2 = (id, clip) => ({ __type__: 'cc.Animation', _name: '', _objFlags: 0, node: { __id__: id }, _enabled: true, _defaultClip: { __uuid__: clip.uuid }, _clips: [{ __uuid__: clip.uuid }], playOnLoad: true, _id: '' });
@@ -65,7 +65,7 @@
       } else {
         const an = get(n.anim); if (an) img = get(an.frames[0]) || img;
         const t = img ? trimOf(img) : { w: 0, h: 0 };
-        const nd = node2(n.name, { __id__: 1 }, 2, n.x, n.y, t.w, t.h); out.push(nd);
+        const nd = node2(n.name, { __id__: 1 }, 2, n.x, n.y, t.w, t.h, n.scale || 1); out.push(nd);
         nd._components.push({ __id__: out.length });
         out.push({
           __type__: 'cc.Sprite', _name: n.name + '<Sprite>', _objFlags: 0, node: { __id__: id }, _enabled: true, _materials: [{ __uuid__: MAT2D }],
@@ -109,7 +109,7 @@
     const t = trimOf(a);
     return {
       ver: '2.3.3', uuid: a.uuid, type: 'sprite', wrapMode: 'clamp', filterMode: 'bilinear', premultiplyAlpha: false, genMipmaps: false, packable: true, platformSettings: {},
-      subMetas: { [a.name]: { ver: '1.0.4', uuid: a.sub, rawTextureUuid: a.uuid, trimType: 'auto', trimThreshold: 0, rotated: false,
+      subMetas: { [a.name]: { ver: '1.0.4', uuid: a.sub, rawTextureUuid: a.uuid, trimType: 'custom', trimThreshold: 0, rotated: false,
         offsetX: t.x + t.w / 2 - a.w / 2, offsetY: a.h / 2 - (t.y + t.h / 2), trimX: t.x, trimY: t.y, width: t.w, height: t.h, rawWidth: a.w, rawHeight: a.h,
         borderTop: 0, borderBottom: 0, borderLeft: 0, borderRight: 0, subMetas: {} } }
     };
@@ -134,8 +134,8 @@
   }
   function prefab3(pf, get) {
     const out = [{ __type__: 'cc.Prefab', _name: pf.name, _objFlags: 0, _native: '', data: { __id__: 1 }, optimizationPolicy: 0, persistent: false, asyncLoadAssets: false }];
-    const node3 = (name, parent, x, y) => { const o = { __type__: 'cc.Node', _name: name, _objFlags: 0 }; if (!parent) o.__editorExtras__ = {};
-      return Object.assign(o, { _parent: parent, _children: [], _active: true, _components: [], _prefab: null, _lpos: v3(x, y, 0), _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: 0, w: 1 }, _lscale: v3(1, 1, 1), _layer: 33554432, _euler: v3(0, 0, 0), _id: '' }); };
+    const node3 = (name, parent, x, y, sc = 1) => { const o = { __type__: 'cc.Node', _name: name, _objFlags: 0 }; if (!parent) o.__editorExtras__ = {};
+      return Object.assign(o, { _parent: parent, _children: [], _active: true, _components: [], _prefab: null, _lpos: v3(x, y, 0), _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: 0, w: 1 }, _lscale: v3(sc, sc, 1), _layer: 33554432, _euler: v3(0, 0, 0), _id: '' }); };
     // thêm component + CompPrefabInfo ngay sau
     const addComp = (nd, make) => { const cid = out.length; nd._components.push({ __id__: cid }); out.push(make(cid + 1)); out.push({ __type__: 'cc.CompPrefabInfo', fileId: fileId() }); };
     const ui = (nid, w, h) => pid => ({ __type__: 'cc.UITransform', _name: '', _objFlags: 0, node: { __id__: nid }, _enabled: true, __prefab: { __id__: pid }, _contentSize: { __type__: 'cc.Size', width: w, height: h }, _anchorPoint: v2(0.5, 0.5), _id: '' });
@@ -145,7 +145,7 @@
     const seq = pf.kind === 'particle' && get(pf.seqAnim), ems = pf.nodes.filter(n => n.type === 'emitter');
     for (const n of pf.nodes) {
       const id = out.length; let img = get(n.image);
-      const nd = node3(n.name, { __id__: 1 }, n.x, n.y); out.push(nd); root._children.push({ __id__: id });
+      const nd = node3(n.name, { __id__: 1 }, n.x, n.y, n.type === 'sprite' ? n.scale || 1 : 1); out.push(nd); root._children.push({ __id__: id });
       if (n.type === 'emitter') {
         if (seq) img = seqFrames(seq, ems.indexOf(n), ems.length, get)[0] || img;
         addComp(nd, ui(id, 100, 100)); addComp(nd, pid => ps3(n, id, pid, img));
@@ -196,7 +196,7 @@
           userData: { wrapModeS: 'clamp-to-edge', wrapModeT: 'clamp-to-edge', imageUuidOrDatabaseUri: id, isUuid: true, visible: false, minfilter: 'linear', magfilter: 'linear', mipfilter: 'none', anisotropy: 0 },
           ver: '1.0.22', imported: true, files: ['.json'], subMetas: {} },
         'f9941': { importer: 'sprite-frame', uuid: id + '@f9941', displayName: a.name, id: 'f9941', name: 'spriteFrame',
-          userData: { trimType: 'auto', trimThreshold: 0, rotated: false, offsetX: t.x + t.w / 2 - a.w / 2, offsetY: a.h / 2 - (t.y + t.h / 2), trimX: t.x, trimY: t.y, width: t.w, height: t.h, rawWidth: a.w, rawHeight: a.h,
+          userData: { trimType: 'custom', trimThreshold: 0, rotated: false, offsetX: t.x + t.w / 2 - a.w / 2, offsetY: a.h / 2 - (t.y + t.h / 2), trimX: t.x, trimY: t.y, width: t.w, height: t.h, rawWidth: a.w, rawHeight: a.h,
             borderTop: 0, borderBottom: 0, borderLeft: 0, borderRight: 0, packable: true, pixelsToUnit: 100, pivotX: 0.5, pivotY: 0.5, meshType: 0,
             vertices: { rawPosition: [-hw, -hh, 0, hw, -hh, 0, -hw, hh, 0, hw, hh, 0], indexes: [0, 1, 2, 2, 1, 3],
               uv: [t.x, t.y + t.h, t.x + t.w, t.y + t.h, t.x, t.y, t.x + t.w, t.y],

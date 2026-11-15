@@ -35,8 +35,10 @@
       <button class="btn" id="btnRestart" title="Chạy lại từ đầu (R)">Chạy lại</button>
       <button class="btn" id="btnFit" title="Vừa khung (F)">Fit</button>
       <button class="btn" id="btnBg" title="Đổi màu nền viewport">Nền</button>
+      <button class="btn" id="btnRef" title="Đặt 1 ảnh làm nền để ướm thử (không xuất vào Cocos)">Ảnh nền</button>
       <span class="zoom" id="zoom">100%</span>
     </div>
+    <div class="refbar hide" id="refBar"><span>Ảnh nền</span><label>Tỉ lệ <input class="num" id="refScale" type="number" step="any" min="0.01" title="Phóng to / thu nhỏ ảnh nền"></label><label>Độ rõ % <input class="num" id="refOp" type="number" min="0" max="100" title="Độ rõ của ảnh nền (0–100)"></label><button class="btn primary" id="refApply" title="Khoá ảnh nền tại chỗ">Apply</button><button class="btn" id="refDel" title="Gỡ ảnh nền">Gỡ</button></div>
     <div class="empty hide" id="empty"><b>Chưa mở prefab nào</b><span>Kéo prefab từ Assets vào đây, hoặc bấm đúp vào prefab</span><span><kbd>Space</kbd> phát/dừng · <kbd>R</kbd> chạy lại · <kbd>F</kbd> vừa khung · <kbd>Ctrl+E</kbd> xuất zip</span></div>
     <div class="hint" id="hint">Lăn chuột: zoom · Giữ chuột phải hoặc phím cách + kéo: pan · Kéo chuột trái: di chuyển node đang chọn</div>
   </section>

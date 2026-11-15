@@ -1,15 +1,13 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "date": "2026-11-15",
   "new": [
-    "Bản đầu tiên: tạo Particle System và Projectile cho Cocos Creator",
-    "Xuất zip cho Cocos 2.1.3 hoặc 3.6.3 (tên file có đuôi _213 / _363)",
-    "Layout kiểu Cocos: Node Tree, Viewport zoom/pan, Assets, Properties",
-    "Particle: bung từ giữa hoặc rơi từ trên, phát 1 lần hoặc loop",
-    "Import folder chuỗi hình, tự tạo Animation clip và gán cho mọi emitter",
-    "Projectile: 6 preset đường bay, FX bung ra ở điểm cuối",
-    "Chuột phải vào folder để thêm tiền tố cho mọi tên bên trong"
+    "Giữ chuột và kéo ngang trên ô số để tăng giảm nhanh (giữ Shift để chỉnh chậm)",
+    "Thêm Scale để chỉnh kích thước Head của Projectile",
+    "Đặt 1 ảnh làm nền để ướm thử: kéo để di chuyển, chỉnh tỉ lệ và độ rõ, bấm Apply để khoá"
   ],
   "improved": [],
-  "fixed": []
+  "fixed": [
+    "Chuỗi hình bị phồng to ở các hình cạnh nghiêng (trong app và trong file xuất)"
+  ]
 }

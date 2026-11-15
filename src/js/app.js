@@ -45,7 +45,7 @@
   const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
   async function mkImage(folder, name, data, ext = 'png') {
     const img = await loadImg(data);
-    return add(folder, { type: 'image', name, ext, data, w: img.naturalWidth, h: img.naturalHeight, trim: trimRect(img), sub: uuid4() });
+    return add(folder, { type: 'image', name, ext, data, w: img.naturalWidth, h: img.naturalHeight, trim: { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight }, sub: uuid4() });
   }
   const readFile = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(f); });
   const isImg = f => /^image\/(png|jpeg|webp)$/.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name);
@@ -108,7 +108,7 @@
       proj: { preset: 'arc', sx: -300, sy: -200, ex: 300, ey: 120, dur: .8, amp: 220, rand: 60, variants: 3, ease: 'linear', rotateDir: true, rotOffset: 0, impact: impact.id, seed: 0 } });
     pf.nodes.push({ id: uid(), type: 'emitter', name: 'Trail', x: 0, y: 0, image: glow.id, ps: defPS({ totalParticles: 90, emissionRate: 160, life: .4, lifeVar: .15, angle: 0, angleVar: 180, speed: 0, speedVar: 25, gravity: { x: 0, y: 0 },
       startSize: 46, startSizeVar: 10, endSize: 0, endSizeVar: 0, startSpin: 0, startSpinVar: 0, endSpin: 0, endSpinVar: 0, startColor: C(255, 225, 90, 255), endColor: C(255, 90, 0, 0), dstBlend: 'ONE' }) });
-    pf.nodes.push({ id: uid(), type: 'sprite', name: 'Head', x: 0, y: 0, image: glow.id, anim: null, srcBlend: 'SRC_ALPHA', dstBlend: 'ONE' });
+    pf.nodes.push({ id: uid(), type: 'sprite', name: 'Head', x: 0, y: 0, scale: 1, image: glow.id, anim: null, srcBlend: 'SRC_ALPHA', dstBlend: 'ONE' });
     return pf;
   }
   async function makeSequence(files, name, project) {
@@ -179,11 +179,11 @@
       if (n.type === 'emitter') {
         if (seq) a = frameOf(seq, ems.indexOf(n), ems.length, I.time) || a;
         const e = I.emitters.get(n.id); if (!e || !a) continue;
-        R.batch(a, n.ps.srcBlend, n.ps.dstBlend); const t = a.trim, ar = t.h / t.w, free = n.ps.positionType === 0, bx = I.x + n.x, by = I.y + n.y;
-        for (const p of e.parts) R.quad((free ? p.sx : bx) + p.x, (free ? p.sy : by) + p.y, p.size, p.size * ar, p.rot, p.c);
+        R.batch(a, n.ps.srcBlend, n.ps.dstBlend); const ar = a.w / a.h, kw = ar > 1 ? 1 : ar, kh = ar > 1 ? 1 / ar : 1, free = n.ps.positionType === 0, bx = I.x + n.x, by = I.y + n.y;
+        for (const p of e.parts) R.quad((free ? p.sx : bx) + p.x, (free ? p.sy : by) + p.y, p.size * kw, p.size * kh, p.rot, p.c);
       } else if (I.headVisible) {
         const an = byId(n.anim); if (an) a = frameOf(an, 0, 1, I.time) || a; if (!a) continue;
-        R.batch(a, n.srcBlend, n.dstBlend); R.quad(I.x + n.x, I.y + n.y, a.trim.w, a.trim.h, I.headRot, [255, 255, 255, 255]);
+        R.batch(a, n.srcBlend, n.dstBlend); R.quad(I.x + n.x, I.y + n.y, a.w * n.scale, a.h * n.scale, I.headRot, [255, 255, 255, 255]);
       }
     }
   }
@@ -219,7 +219,9 @@
   function tick(now) {
     const dt = Math.min(.05, (now - last) / 1000); last = now;
     if (playing) advance(dt);
-    R.begin(view(), BGS[S.bg || 0]); if (cur() && inst && inst.prefab === cur()) { drawInst(inst); if (impact) drawInst(impact); } R.end();
+    R.begin(view(), BGS[S.bg || 0]);
+    if (S.ref) { const b = S.ref; R.batch(refAsset(), 'SRC_ALPHA', 'ONE_MINUS_SRC_ALPHA'); const o = b.opacity * 2.55; R.quad(b.x, b.y, b.w * b.scale, b.h * b.scale, 0, [255, 255, 255, o]); R.flush(); }
+    if (cur() && inst && inst.prefab === cur()) { drawInst(inst); if (impact) drawInst(impact); } R.end();
     drawOverlay();
     if (now - stT > 250) { stT = now; status(); }
     requestAnimationFrame(tick);
@@ -230,6 +232,19 @@
     $('#st2').textContent = pf && pf.kind === 'projectile' ? 'Đường bay chỉ để xem trước — khi xuất, prefab nằm tại (0,0)' : '';
     $('#zoom').textContent = Math.round(view().z * 100) + '%';
   }
+  // ---- ảnh nền để ướm thử ----
+  const refAsset = () => ({ id: '__ref', data: S.ref.data, w: S.ref.w, h: S.ref.h, trim: { x: 0, y: 0, w: S.ref.w, h: S.ref.h } });
+  function renderRef() {
+    const bar = $('#refBar'), b = S.ref; bar.classList.toggle('hide', !b || b.locked); $('#btnRef').classList.toggle('on', !!b);
+    if (b && !b.locked) { $('#refScale').value = b.scale; $('#refOp').value = b.opacity; }
+    $('#hint').textContent = b && !b.locked ? 'Đang chỉnh ảnh nền: kéo chuột trái để di chuyển ảnh · bấm Apply để khoá' : 'Lăn chuột: zoom · Giữ chuột phải hoặc phím cách + kéo: pan · Kéo chuột trái: di chuyển node đang chọn';
+  }
+  async function pickRef() { const fs = await pickFiles($('#fileImg')); if (!fs.length) return; const data = await readFile(fs[0]), img = await loadImg(data);
+    S.ref = { data, w: img.naturalWidth, h: img.naturalHeight, x: 0, y: 0, scale: 1, opacity: 100, locked: false }; dirty(); renderRef(); }
+  function refMenu(e) {
+    if (!S.ref) return pickRef(); const r = e.currentTarget.getBoundingClientRect();
+    ctxMenu(r.left, r.bottom + 4, [[S.ref.locked ? 'Chỉnh lại vị trí ảnh nền' : 'Khoá ảnh nền (Apply)', () => { S.ref.locked = !S.ref.locked; dirty(); renderRef(); }], ['Đổi ảnh khác…', pickRef], ['Gỡ ảnh nền', () => { S.ref = null; dirty(); renderRef(); }]]);
+  }
   function fit() { const v = view(); v.z = Math.max(.05, Math.min((viewEl.clientWidth - 80) / S.canvas.w, (viewEl.clientHeight - 110) / S.canvas.h)); v.x = 0; v.y = 12; }
 
   // chuột trong viewport
@@ -238,9 +253,10 @@
   viewEl.addEventListener('wheel', e => { e.preventDefault(); const r = viewEl.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, v = view(), [wx, wy] = s2w(mx, my);
     v.z = Math.max(.05, Math.min(16, v.z * Math.exp(-e.deltaY * .0015))); v.x = mx - viewEl.clientWidth / 2 - wx * v.z; v.y = my - viewEl.clientHeight / 2 + wy * v.z; }, { passive: false });
   viewEl.addEventListener('pointerdown', e => {
-    if (e.target.closest('.vbar')) return;
+    if (e.target.closest('.vbar,.refbar')) return;
     const r = viewEl.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, pf = cur();
     if (e.button === 1 || e.button === 2 || space) drag = { k: 'pan' };
+    else if (e.button === 0 && S.ref && !S.ref.locked) drag = { k: 'ref' };
     else if (e.button === 0 && pf) {
       if (pf.kind === 'projectile') for (const [k, x, y] of [['s', pf.proj.sx, pf.proj.sy], ['e', pf.proj.ex, pf.proj.ey]]) { const s = w2s(x, y); if (Math.hypot(s[0] - mx, s[1] - my) < 13) drag = { k: 'pt', p: k }; }
       if (!drag && selNode()) drag = { k: 'node' };
@@ -250,6 +266,7 @@
   viewEl.addEventListener('pointermove', e => {
     if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y, v = view(); drag.x = e.clientX; drag.y = e.clientY;
     if (drag.k === 'pan') { v.x += dx; v.y += dy; return; }
+    if (drag.k === 'ref') { S.ref.x = Math.round(S.ref.x + dx / v.z); S.ref.y = Math.round(S.ref.y - dy / v.z); drag.moved = true; return; }
     const pf = cur(), wx = dx / v.z, wy = -dy / v.z;
     if (drag.k === 'node') { const n = selNode(); n.x = r1(n.x + wx); n.y = r1(n.y + wy); }
     else { const pj = pf.proj, k = drag.p; pj[k + 'x'] = Math.round(pj[k + 'x'] + wx); pj[k + 'y'] = Math.round(pj[k + 'y'] + wy); }
@@ -491,7 +508,7 @@
       h += `<div class="sec"><b>Head (đầu đạn)</b>${slot('sanim', an || byId(n.image), 'Sprite Frame', an ? `Chuỗi ${an.frames.length} hình · Animation clip` : 'Kéo ảnh hoặc Animation clip vào đây', an ? 'sanim' : '')}
         <div class="f" style="margin-top:8px"><label>Import</label><button class="btn w2" data-dir="sanim" title="Chọn folder chứa chuỗi PNG cho Head">Import folder chuỗi hình…</button></div>
         ${an ? row('Tốc độ (fps)', num(an.id, 'sample'), `<small>${an.frames.length} hình</small>`) : ''}</div>
-      <div class="sec"><b>Node</b>${row('Position', num('node', 'x', 'X'), num('node', 'y', 'Y'))}${fSel('Src Blend Factor', 'node', 'srcBlend', BL)}${fSel('Dst Blend Factor', 'node', 'dstBlend', BL)}</div>`;
+      <div class="sec"><b>Node</b>${row('Position', num('node', 'x', 'X'), num('node', 'y', 'Y'))}${row('Scale', num('node', 'scale', 'Kích thước Head (1 = 100%)'), '<small>× kích thước ảnh</small>')}${fSel('Src Blend Factor', 'node', 'srcBlend', BL)}${fSel('Dst Blend Factor', 'node', 'dstBlend', BL)}</div>`;
     } else h += emitterProps(n, false);
     P.innerHTML = h;
   }
@@ -514,6 +531,24 @@
     if ((b = e.target.closest('[data-pick]'))) { const k = b.dataset.pick; if (k === 'impact' || k === 'seq') return; const fs = await pickFiles($('#fileImg')); if (fs.length) slotFiles(k, fs); }
   });
 
+  // giữ chuột + kéo ngang trên ô số để tăng giảm nhanh (Shift = chậm, bấm thường = gõ số)
+  const INTK = /totalParticles$|variants$|\.a$|^(sx|sy|ex|ey)$/;
+  let scrub = null;
+  document.addEventListener('pointerdown', e => {
+    const i = e.target; if (e.button !== 0 || !i.matches || !i.matches('input.num[type=number]') || i === document.activeElement) return;
+    const v = parseFloat(i.value) || 0, a = Math.abs(v), int = INTK.test(i.dataset.k || '') || i.id === 'cw' || i.id === 'ch';
+    scrub = { i, x: e.clientX, v, on: false, int, step: int ? Math.max(.25, a / 200) : a >= 100 ? 1 : a >= 10 ? .25 : a >= 1 ? .02 : .01 };
+    e.preventDefault(); i.setPointerCapture(e.pointerId);
+  }, true);
+  document.addEventListener('pointermove', e => {
+    if (!scrub) return; const d = e.clientX - scrub.x; if (!scrub.on) { if (Math.abs(d) < 4) return; scrub.on = true; document.body.classList.add('scrubbing'); }
+    let v = scrub.v + d * scrub.step * (e.shiftKey ? .1 : 1); v = scrub.int ? Math.round(v) : Math.round(v * 100) / 100;
+    if (scrub.i.min !== '' && v < +scrub.i.min) v = +scrub.i.min; if (scrub.i.max !== '' && v > +scrub.i.max) v = +scrub.i.max;
+    if (String(v) !== scrub.i.value) { scrub.i.value = v; scrub.i.dispatchEvent(new Event('input', { bubbles: true })); }
+  }, true);
+  const endScrub = () => { if (!scrub) return; const s = scrub; scrub = null; document.body.classList.remove('scrubbing'); if (!s.on) { s.i.focus(); s.i.select(); } };
+  document.addEventListener('pointerup', endScrub, true); document.addEventListener('pointercancel', endScrub, true);
+
   // ================= header =================
   function renderTabs() { $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === S.tab)); const b = $('.tab.on'), bar = $('#tabbar'); bar.style.left = b.offsetLeft + 'px'; bar.style.width = b.offsetWidth + 'px'; }
   $('#tabs').addEventListener('click', e => { const t = e.target.dataset.t; if (!t || t === S.tab) return; S.tab = t; S.sel = null; restart(); renderAll(); dirty(); });
@@ -521,6 +556,11 @@
   $('#btnPlay').onclick = () => { playing = !playing; $('#btnPlay').textContent = playing ? 'Dừng' : 'Phát'; };
   $('#btnRestart').onclick = () => { restart(); if (!playing) $('#btnPlay').click(); };
   $('#btnFit').onclick = fit;
+  $('#btnRef').onclick = refMenu;
+  $('#refApply').onclick = () => { S.ref.locked = true; dirty(); renderRef(); toast('Đã khoá ảnh nền. Bấm "Ảnh nền" để chỉnh lại hoặc gỡ.'); };
+  $('#refDel').onclick = () => { S.ref = null; dirty(); renderRef(); };
+  $('#refScale').addEventListener('input', e => { const v = parseFloat(e.target.value); if (v > 0) { S.ref.scale = v; dirty(); } });
+  $('#refOp').addEventListener('input', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { S.ref.opacity = Math.max(0, Math.min(100, v)); dirty(); } });
   $('#btnBg').onclick = () => { S.bg = ((S.bg || 0) + 1) % BGS.length; dirty(); };
   const typing = e => /INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
   document.addEventListener('keydown', e => {
@@ -578,14 +618,15 @@
       m.querySelector('#sReset').onclick = async () => { close(); if (await confirmDlg('Tạo lại project mẫu', 'Xoá toàn bộ assets hiện tại và tạo lại project mẫu ban đầu?', 'Tạo lại')) { await bootstrap(); restart(); fitAll(); renderAll(); dirty(); } }; });
 
   // ================= khởi động =================
-  function renderAll() { renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
+  function renderAll() { renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
   function fitAll() { const t = S.tab; for (const k of ['particle', 'projectile']) { S.tab = k; fit(); } S.tab = t; }
   async function init() {
     if (api) document.documentElement.classList.add('electron');
     const saved = await load();
     if (saved) { try { S = JSON.parse(saved); if (!S.root || !S.canvas) throw 0; } catch (e) { S = null; } }
     if (!S) await bootstrap();
-    idx = null; R = new M.Renderer($('#gl'));
+    idx = null; walk(a => { if (a.type === 'image') a.trim = { x: 0, y: 0, w: a.w, h: a.h }; if (a.type === 'prefab') a.nodes.forEach(n => { if (n.type === 'sprite' && !(n.scale > 0)) n.scale = 1; }); });
+    R = new M.Renderer($('#gl'));
     await Promise.all(all().filter(a => a.type === 'image').map(a => { const i = M.imgOf(a); return i.complete ? 0 : new Promise(ok => { i.onload = i.onerror = ok; }); }));
     fitAll(); restart(); renderAll();
     window.addEventListener('resize', renderTabs);
