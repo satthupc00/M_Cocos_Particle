@@ -1,0 +1,39 @@
+name: Build and release
+on:
+  push:
+    branches: [main, master, claude/trusting-cray-qxtri5]
+    paths: [package.json, .github/workflows/release.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Skip if this version is already released
+        id: chk
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "v=$V" >> $GITHUB_OUTPUT
+          if gh release view "v$V" >/dev/null 2>&1; then echo "exists=1" >> $GITHUB_OUTPUT; else echo "exists=0" >> $GITHUB_OUTPUT; fi
+      - name: Build and publish
+        if: steps.chk.outputs.exists == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish always
+      - name: Release notes
+        if: steps.chk.outputs.exists == '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node -e "const w=require('./whatsnew.json');const g=(t,a)=>a&&a.length?'### '+t+'\n'+a.map(x=>'- '+x).join('\n')+'\n\n':'';require('fs').writeFileSync('notes.md',g('Mới',w.new)+g('Cải thiện',w.improved)+g('Sửa lỗi',w.fixed))"
+          gh release edit "v${{ steps.chk.outputs.v }}" --notes-file notes.md --draft=false --latest

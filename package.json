@@ -1,0 +1,53 @@
+{
+  "name": "m-cocos-particle",
+  "productName": "M Cocos Particle",
+  "version": "1.0.0",
+  "description": "Tạo Particle và Projectile cho Cocos Creator 2.1.3 / 3.6.3",
+  "author": "Mondiro",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "jszip": "^3.10.1"
+  },
+  "build": {
+    "appId": "com.mondiro.cocosparticle",
+    "productName": "M Cocos Particle",
+    "files": [
+      "main.js",
+      "preload.js",
+      "whatsnew.json",
+      "src/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "M Cocos Particle"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "satthupc00",
+      "repo": "M_Cocos_Particle",
+      "releaseType": "release"
+    }
+  }
+}
