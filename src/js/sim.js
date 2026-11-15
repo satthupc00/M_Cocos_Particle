@@ -85,6 +85,7 @@
   // Một prefab đang chạy trong viewport
   class Instance {
     constructor(prefab) { this.prefab = prefab; this.x = 0; this.y = 0; this.time = 0; this.emitters = new Map(); this.headVisible = true; this.headRot = 0; }
+    nodePos(node) { const pf = this.prefab, r = (pf.rot || 0) * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r), x = node.x * (pf.sx || 1), y = node.y * (pf.sy || 1); return { x: this.x + x * c - y * sn, y: this.y + x * sn + y * c }; }
     em(node) { let e = this.emitters.get(node.id); if (!e || e.node !== node) { e = new Emitter(node); this.emitters.set(node.id, e); } return e; }
     reset() { this.emitters.clear(); this.time = 0; }
     stopAll() { this.emitters.forEach(e => e.stop()); }
@@ -93,7 +94,7 @@
       const ox = this.x, oy = this.y, n = Math.max(1, Math.min(8, Math.ceil(dt / (1 / 120))));
       for (let i = 1; i <= n; i++) {
         const f = i / n; this.x = ox + (nx - ox) * f; this.y = oy + (ny - oy) * f;
-        for (const node of this.prefab.nodes) if (node.type === 'emitter' && !node.hidden) this.em(node).step(dt / n, this.x + node.x, this.y + node.y);
+        for (const node of this.prefab.nodes) if (node.type === 'emitter' && !node.hidden) { const w = this.nodePos(node); this.em(node).step(dt / n, w.x, w.y); }
       }
       this.time += dt;
     }

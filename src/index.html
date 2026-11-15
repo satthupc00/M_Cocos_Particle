@@ -15,6 +15,8 @@
     <i class="tabbar" id="tabbar"></i>
   </div>
   <div class="tools">
+    <button class="btn ibtn" id="btnUndo" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button class="btn ibtn" id="btnRedo" title="Làm lại (Ctrl+Y)" aria-label="Làm lại"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
     <div class="cv no-drag" title="Kích thước khung canvas (chỉ để xem trước)">Canvas <input class="num" id="cw" type="number" min="1" aria-label="Chiều rộng canvas"> × <input class="num" id="ch" type="number" min="1" aria-label="Chiều cao canvas"></div>
     <button class="btn primary" id="btnExport" title="Xuất zip cho Cocos (Ctrl+E)"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Xuất zip</button>
     <button class="btn ibtn" id="btnSet" title="Cài đặt" aria-label="Cài đặt"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
@@ -24,13 +26,14 @@
 
 <div class="body">
   <section class="pane tree">
-    <h3>Node Tree <span class="sp"><button class="mini" id="btnAddNode" title="Thêm emitter" aria-label="Thêm emitter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></span></h3>
+    <h3>Node Tree <span class="sp"><button class="mini" id="btnAddNode" title="Thêm emitter vào prefab đang chọn" aria-label="Thêm emitter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></span></h3>
     <div class="scroll" id="treeList" data-drop="tree"></div>
   </section>
 
   <section class="view" id="view" data-drop="view">
     <canvas id="gl"></canvas><canvas id="ov"></canvas>
     <div class="vbar">
+      <div class="seg" id="tools"><button data-tool="move" title="Di chuyển (W)">Move</button><button data-tool="rotate" title="Xoay (E) — giữ Shift để xoay theo nấc 15°">Rotate</button><button data-tool="scale" title="Co giãn (T) — kéo ngang">Scale</button></div>
       <button class="btn" id="btnPlay" title="Phát / dừng (Space)">Dừng</button>
       <button class="btn" id="btnRestart" title="Chạy lại từ đầu (R)">Chạy lại</button>
       <button class="btn" id="btnFit" title="Vừa khung (F)">Fit</button>

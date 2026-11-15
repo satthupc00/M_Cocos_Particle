@@ -109,7 +109,7 @@
       proj: { preset: 'arc', sx: -300, sy: -200, ex: 300, ey: 120, dur: .8, amp: 220, rand: 60, variants: 3, ease: 'linear', rotateDir: true, rotOffset: 0, impact: impact.id, seed: 0 } });
     pf.nodes.push({ id: uid(), type: 'emitter', name: 'Trail', x: 0, y: 0, image: glow.id, ps: defPS({ totalParticles: 90, emissionRate: 160, life: .4, lifeVar: .15, angle: 0, angleVar: 180, speed: 0, speedVar: 25, gravity: { x: 0, y: 0 },
       startSize: 46, startSizeVar: 10, endSize: 0, endSizeVar: 0, startSpin: 0, startSpinVar: 0, endSpin: 0, endSpinVar: 0, startColor: C(255, 225, 90, 255), endColor: C(255, 90, 0, 0), dstBlend: 'ONE' }) });
-    pf.nodes.push({ id: uid(), type: 'sprite', name: 'Head', x: 0, y: 0, scale: 1, image: glow.id, anim: null, srcBlend: 'SRC_ALPHA', dstBlend: 'ONE' });
+    pf.nodes.push({ id: uid(), type: 'sprite', name: 'Head', x: 0, y: 0, image: glow.id, anim: null, srcBlend: 'SRC_ALPHA', dstBlend: 'ONE' });
     return pf;
   }
   async function makeSequence(files, name, project) {
@@ -118,78 +118,113 @@
     return add(subFolder(project, 'Animations'), { type: 'anim', name: name + '_Loop', sample: 30, frames: imgs.map(i => i.id) });
   }
   async function bootstrap() {
-    S = { root: { id: 'root', type: 'folder', name: 'assets', children: [] }, canvas: { w: 960, h: 640 }, tab: 'particle', open: {}, sel: null, folder: null, ver: '213', bg: 0 };
+    S = { root: { id: 'root', type: 'folder', name: 'assets', children: [] }, canvas: { w: 960, h: 640 }, tab: 'particle', scene: { particle: [], projectile: [] }, sel: null, folder: null, ver: '213', bg: 0 };
     idx = null;
     const p1 = mkFolder(S.root, 'Coin_FX'); ['Animations', 'Images', 'Prefabs'].forEach(k => subFolder(p1, k));
     const a = await newParticle(p1, 'Particle_Burst', { ps: { startColor: C(255, 205, 60, 255), endColor: C(255, 170, 30, 255) } });
     const p2 = mkFolder(S.root, 'Projectile_FX'); ['Animations', 'Images', 'Prefabs'].forEach(k => subFolder(p2, k));
     const b = await newProjectile(p2, 'Projectile');
-    S.open = { particle: a.id, projectile: b.id }; S.folder = subFolder(p1, 'Prefabs').id; S.sel = a.nodes[0].id;
+    S.scene = { particle: [a.id], projectile: [b.id] }; S.folder = subFolder(p1, 'Prefabs').id; S.sel = { pf: a.id, node: a.nodes[0].id }; normAll();
   }
 
   // ================= lưu tự động =================
   const DB = () => new Promise((ok, no) => { const r = indexedDB.open('m-cocos-particle', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
   async function load() { try { const db = await DB(); return await new Promise(ok => { const r = db.transaction('kv').objectStore('kv').get('state'); r.onsuccess = () => ok(r.result || null); r.onerror = () => ok(null); }); } catch (e) { return null; } }
   let saveT;
-  function dirty() { idx = null; clearTimeout(saveT); saveT = setTimeout(async () => { try { const db = await DB(); db.transaction('kv', 'readwrite').objectStore('kv').put(JSON.stringify(S), 'state'); } catch (e) { } }, 600); }
+  // mọi prefab / node đều có vị trí, góc xoay, tỉ lệ
+  const xf = o => { if (typeof o.x !== 'number') o.x = 0; if (typeof o.y !== 'number') o.y = 0; if (typeof o.rot !== 'number') o.rot = 0; if (!(o.sx > 0)) o.sx = o.scale > 0 ? o.scale : 1; if (!(o.sy > 0)) o.sy = o.scale > 0 ? o.scale : 1; delete o.scale; };
+  function normAll() { walk(a => { if (a.type === 'image') a.trim = { x: 0, y: 0, w: a.w, h: a.h }; if (a.type === 'prefab') { xf(a); a.nodes.forEach(xf); } });
+    if (!S.scene) S.scene = { particle: S.open && S.open.particle ? [S.open.particle] : [], projectile: S.open && S.open.projectile ? [S.open.projectile] : [] };
+    for (const k of ['particle', 'projectile']) S.scene[k] = (S.scene[k] || []).filter(id => { const a = byId(id); return a && a.type === 'prefab'; });
+    if (S.sel && typeof S.sel !== 'object') S.sel = null; delete S.open; }
+  function save() { clearTimeout(saveT); saveT = setTimeout(async () => { try { const db = await DB(); db.transaction('kv', 'readwrite').objectStore('kv').put(JSON.stringify(S), 'state'); } catch (e) { } }, 250); }
+  // ---- undo / redo (10 bước) : chỉ lưu phần nội dung, ảnh được giữ riêng để nhẹ ----
+  const DOC = ['root', 'canvas', 'scene', 'ref'], blobKey = new Map(), blobVal = new Map(), HMAX = 10;
+  const snap = () => JSON.stringify(DOC.map(k => S[k] === undefined ? null : S[k]), (k, v) => { if (k !== 'data' || typeof v !== 'string') return v; let t = blobKey.get(v); if (!t) { t = '\u0001' + blobKey.size; blobKey.set(v, t); blobVal.set(t, v); } return t; });
+  let hist = [], redoS = [], base = null, histT;
+  function commit() { clearTimeout(histT); if (base === null) return; const s = snap(); if (s === base) return; hist.push(base); if (hist.length > HMAX) hist.shift(); redoS = []; base = s; undoBtns(); }
+  function restore(s) { const a = JSON.parse(s, (k, v) => k === 'data' && typeof v === 'string' && blobVal.has(v) ? blobVal.get(v) : v); DOC.forEach((k, i) => S[k] = a[i]); idx = null;
+    if (!byId(S.folder)) S.folder = 'root'; if (S.sel && !scenePfs().some(p => p.id === S.sel.pf)) select(scenePfs()[0] || null); restart(); renderAll(); save(); undoBtns(); }
+  function undo() { commit(); if (!hist.length) return toast('Không còn bước nào để hoàn tác'); redoS.push(base); base = hist.pop(); restore(base); }
+  function redo() { commit(); if (!redoS.length) return toast('Không còn bước nào để làm lại'); hist.push(base); base = redoS.pop(); restore(base); }
+  function undoBtns() { $('#btnUndo').disabled = !hist.length; $('#btnRedo').disabled = !redoS.length; }
+  function dirty() { idx = null; normAll(); save(); clearTimeout(histT); histT = setTimeout(commit, 350); }
 
   // ================= runtime / viewport =================
-  const cur = () => { const a = byId(S.open[S.tab]); return a && a.type === 'prefab' ? a : null; };
-  const selNode = () => { const pf = cur(); return pf ? pf.nodes.find(n => n.id === S.sel) || null : null; };
+  // Node Tree của mỗi tab là 1 "scene" gồm nhiều prefab vẽ song song; prefab nằm dưới vẽ sau (đè lên trên)
+  const scenePfs = () => (S.scene[S.tab] || []).map(byId).filter(a => a && a.type === 'prefab');
+  const cur = () => { const l = scenePfs(); return l.find(p => S.sel && p.id === S.sel.pf) || l[0] || null; };
+  const selNode = () => { const pf = cur(); return pf && S.sel && S.sel.pf === pf.id ? pf.nodes.find(n => n.id === S.sel.node) || null : null; };
+  const select = (pf, node) => { S.sel = pf ? { pf: pf.id, node: node ? node.id : null } : null; };
   const views = { particle: { x: 0, y: 0, z: 1 }, projectile: { x: 0, y: 0, z: 1 } };
   const view = () => views[S.tab];
   const BGS = [[.169, .176, .192], [0, 0, 0], [.45, .45, .47], [.09, .22, .16]];
-  let R, inst = null, impact = null, playing = true, doneT = 0, fly = null, last = performance.now();
+  let R, playing = true, last = performance.now(), tool = 'move';
+  const RT = new Map();
   const viewEl = $('#view'), ov = $('#ov');
-  function restart() {
-    const pf = cur(); inst = pf ? new M.sim.Instance(pf) : null; impact = null; doneT = 0; fly = null;
-    if (pf && pf.kind === 'projectile') startFly();
-  }
-  function startFly() {
-    const pf = cur(), pj = pf.proj; inst.reset(); impact = null;
+  function restart() { RT.clear(); }
+  function startFly(pf, r) {
+    const pj = pf.proj; r.inst.reset(); r.impact = null;
     const v = M.sim.variant(pj, Math.floor(Math.random() * Math.max(1, pj.variants)));
-    fly = { t: 0, v, phase: 'fly', it: 0 }; inst.x = pj.sx; inst.y = pj.sy; inst.headVisible = true; inst.headRot = 0;
+    r.fly = { t: 0, v, phase: 'fly', it: 0 }; r.inst.x = pj.sx; r.inst.y = pj.sy; r.inst.headVisible = true; r.inst.headRot = 0;
   }
-  function advance(dt) {
-    const pf = cur(); if (!pf) return; if (!inst || inst.prefab !== pf) restart();
+  function rtOf(pf) {
+    let r = RT.get(pf.id);
+    if (!r || r.inst.prefab !== pf) { r = { inst: new M.sim.Instance(pf), impact: null, fly: null, doneT: 0 }; RT.set(pf.id, r); if (pf.kind === 'projectile') startFly(pf, r); else { r.inst.x = pf.x; r.inst.y = pf.y; } }
+    return r;
+  }
+  function stepPf(pf, r, dt) {
+    const inst = r.inst;
     if (pf.kind === 'particle') {
-      inst.step(dt, 0, 0);
-      if (emitters(pf).length && inst.done()) { doneT += dt; if (doneT > .7) { inst.reset(); doneT = 0; } }
+      inst.step(dt, pf.x, pf.y);
+      if (emitters(pf).length && inst.done()) { r.doneT += dt; if (r.doneT > .7) { inst.reset(); r.doneT = 0; } }
       return;
     }
-    const pj = pf.proj;
+    const pj = pf.proj, fly = r.fly;
     if (fly.phase === 'fly') {
       fly.t += dt; const u = Math.min(1, fly.t / Math.max(.05, pj.dur)), p = M.sim.pathPoint(pj, fly.v, M.sim.EASE[pj.ease](u));
       const dx = p.x - inst.x, dy = p.y - inst.y;
       if (pj.rotateDir && (dx || dy)) inst.headRot = -Math.atan2(dy, dx) * 180 / Math.PI + pj.rotOffset; else if (!pj.rotateDir) inst.headRot = pj.rotOffset;
       inst.step(dt, p.x, p.y);
-      if (u >= 1) { fly.phase = 'impact'; inst.stopAll(); inst.headVisible = false; const ip = byId(pj.impact); if (ip) { impact = new M.sim.Instance(ip); impact.x = p.x; impact.y = p.y; } }
+      if (u >= 1) { fly.phase = 'impact'; inst.stopAll(); inst.headVisible = false; const ip = byId(pj.impact); if (ip) { r.impact = new M.sim.Instance(ip); r.impact.x = p.x; r.impact.y = p.y; } }
     } else {
       fly.it += dt; inst.step(dt, inst.x, inst.y);
-      if (impact) { impact.step(dt, impact.x, impact.y); if (fly.it > .3) impact.stopAll(); }
-      if (fly.it > .5 && !inst.count() && (!impact || !impact.count())) startFly();
+      if (r.impact) { r.impact.step(dt, r.impact.x, r.impact.y); if (fly.it > .3) r.impact.stopAll(); }
+      if (fly.it > .5 && !inst.count() && (!r.impact || !r.impact.count())) startFly(pf, r);
     }
+  }
+  function advance(dt) {
+    const list = scenePfs(), ids = new Set(list.map(p => p.id));
+    for (const k of [...RT.keys()]) if (!ids.has(k)) RT.delete(k);
+    for (const pf of list) stepPf(pf, rtOf(pf), dt);
   }
   const getA = id => byId(id);
   function frameOf(anim, i, n, time) { const fr = M.seqFrames(anim, i, n, getA); return fr.length ? fr[Math.floor(time * anim.sample) % fr.length] : null; }
+  // ma trận xoay + co giãn (góc ngược chiều kim đồng hồ như Cocos)
+  const lin = o => { const r = (o.rot || 0) * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r); return [c * o.sx, sn * o.sx, -sn * o.sy, c * o.sy]; };
+  const mul = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3]];
   function drawInst(I) {
-    const pf = I.prefab, ems = emitters(pf), seq = pf.kind === 'particle' && byId(pf.seqAnim);
+    const pf = I.prefab, ems = emitters(pf), seq = pf.kind === 'particle' && byId(pf.seqAnim), LR = lin(pf);
+    if (pf.hidden) return;
     for (const n of pf.nodes) {
       if (n.hidden) continue;
-      let a = byId(n.image);
+      let a = byId(n.image); const W = I.nodePos(n); R.mat(mul(LR, lin(n)), W.x, W.y);
       if (n.type === 'emitter') {
         if (seq) a = frameOf(seq, ems.indexOf(n), ems.length, I.time) || a;
         const e = I.emitters.get(n.id); if (!e || !a) continue;
-        R.batch(a, n.ps.srcBlend, n.ps.dstBlend); const ar = a.w / a.h, kw = ar > 1 ? 1 : ar, kh = ar > 1 ? 1 / ar : 1, free = n.ps.positionType === 0, bx = I.x + n.x, by = I.y + n.y;
-        for (const p of e.parts) R.quad((free ? p.sx : bx) + p.x, (free ? p.sy : by) + p.y, p.size * kw, p.size * kh, p.rot, p.c);
+        R.batch(a, n.ps.srcBlend, n.ps.dstBlend); const ar = a.w / a.h, kw = ar > 1 ? 1 : ar, kh = ar > 1 ? 1 / ar : 1, free = n.ps.positionType === 0;
+        for (const p of e.parts) R.quad(p.x - (free ? W.x - p.sx : 0), p.y - (free ? W.y - p.sy : 0), p.size * kw, p.size * kh, p.rot, p.c);
       } else if (I.headVisible) {
         const an = byId(n.anim); if (an) a = frameOf(an, 0, 1, I.time) || a; if (!a) continue;
-        R.batch(a, n.srcBlend, n.dstBlend); R.quad(I.x + n.x, I.y + n.y, a.w * n.scale, a.h * n.scale, I.headRot, [255, 255, 255, 255]);
+        R.batch(a, n.srcBlend, n.dstBlend); R.quad(0, 0, a.w, a.h, I.headRot, [255, 255, 255, 255]);
       }
     }
+    R.mat([1, 0, 0, 1], 0, 0);
   }
   const w2s = (x, y) => { const v = view(); return [viewEl.clientWidth / 2 + v.x + x * v.z, viewEl.clientHeight / 2 + v.y - y * v.z]; };
   const s2w = (sx, sy) => { const v = view(); return [(sx - viewEl.clientWidth / 2 - v.x) / v.z, -(sy - viewEl.clientHeight / 2 - v.y) / v.z]; };
+  // vị trí (world) của thứ đang chọn: node hoặc gốc prefab
+  function selPos() { const pf = cur(); if (!pf) return null; const r = RT.get(pf.id); if (!r) return null; const n = selNode(); return n ? r.inst.nodePos(n) : { x: r.inst.x, y: r.inst.y }; }
   function drawOverlay() {
     const dpr = window.devicePixelRatio || 1, w = viewEl.clientWidth, h = viewEl.clientHeight;
     if (ov.width !== Math.round(w * dpr) || ov.height !== Math.round(h * dpr)) { ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr); }
@@ -204,41 +239,50 @@
     g.strokeStyle = 'rgba(229,56,59,.9)'; g.lineWidth = 1.5; g.strokeRect(ox - cw / 2, oy - ch / 2, cw, ch);
     g.fillStyle = '#8D929C'; g.font = '11px "Segoe UI",sans-serif'; g.fillText(`Canvas ${S.canvas.w} × ${S.canvas.h}`, ox - cw / 2 + 4, oy - ch / 2 - 6);
     const pf = cur(); if (!pf) return;
-    if (pf.kind === 'projectile' && !S.hidePath) {
-      const pj = pf.proj, col = M.sim.PRESETS[pj.preset].color; g.setLineDash([5, 5]); g.lineWidth = 1.5; g.strokeStyle = col; g.globalAlpha = .7;
+    if (!S.hidePath) for (const q of scenePfs()) {
+      if (q.kind !== 'projectile' || q.hidden) continue;
+      const pj = q.proj, col = M.sim.PRESETS[pj.preset].color; g.setLineDash([5, 5]); g.lineWidth = 1.5; g.strokeStyle = col; g.globalAlpha = q === pf ? .7 : .3;
       for (let i = 0; i < Math.max(1, pj.variants); i++) { const vr = M.sim.variant(pj, i); g.beginPath(); for (let k = 0; k <= 60; k++) { const p = M.sim.pathPoint(pj, vr, k / 60), s = w2s(p.x, p.y); k ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1]); } g.stroke(); }
-      g.setLineDash([]); g.globalAlpha = 1;
+      g.setLineDash([]); g.globalAlpha = 1; if (q !== pf) continue;
       [['A', pj.sx, pj.sy], ['B', pj.ex, pj.ey]].forEach(([t, x, y]) => { const s = w2s(x, y); g.fillStyle = '#1F2126'; g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); g.arc(s[0], s[1], 9, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#fff'; g.font = 'bold 10px "Segoe UI",sans-serif'; g.fillText(t, s[0] - 3.5, s[1] + 3.5); });
     }
-    const n = selNode();
-    if (n && inst) {
-      const s = w2s(inst.x + n.x, inst.y + n.y); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.arc(s[0], s[1], 7, 0, 7); g.moveTo(s[0] - 12, s[1]); g.lineTo(s[0] + 12, s[1]); g.moveTo(s[0], s[1] - 12); g.lineTo(s[0], s[1] + 12); g.stroke();
-      if (n.type === 'emitter' && (n.ps.posVar.x || n.ps.posVar.y)) { g.setLineDash([4, 4]); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.strokeRect(s[0] - n.ps.posVar.x * v.z, s[1] - n.ps.posVar.y * v.z, n.ps.posVar.x * 2 * v.z, n.ps.posVar.y * 2 * v.z); g.setLineDash([]); }
+    const n = selNode(), P0 = selPos();
+    if (P0) {
+      const s = w2s(P0.x, P0.y); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath();
+      if (n) g.arc(s[0], s[1], 7, 0, 7); else g.rect(s[0] - 6, s[1] - 6, 12, 12);
+      g.moveTo(s[0] - 12, s[1]); g.lineTo(s[0] + 12, s[1]); g.moveTo(s[0], s[1] - 12); g.lineTo(s[0], s[1] + 12); g.stroke();
+      if (n && n.type === 'emitter' && (n.ps.posVar.x || n.ps.posVar.y)) {
+        const m = mul(lin(pf), lin(n)), px = n.ps.posVar.x, py = n.ps.posVar.y; g.setLineDash([4, 4]); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.beginPath();
+        [[-px, -py], [px, -py], [px, py], [-px, py]].forEach(([x, y], i) => { const q = w2s(P0.x + m[0] * x + m[2] * y, P0.y + m[1] * x + m[3] * y); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); }); g.closePath(); g.stroke(); g.setLineDash([]);
+      }
     }
   }
   let stT = 0;
   function tick(now) {
     const dt = Math.min(.05, (now - last) / 1000); last = now;
     if (playing) advance(dt);
-    R.begin(view(), BGS[S.bg || 0]);
+    R.begin(view(), BGS[S.bg || 0]); R.mat([1, 0, 0, 1], 0, 0);
     if (S.ref) { const b = S.ref; R.batch(refAsset(), 'SRC_ALPHA', 'ONE_MINUS_SRC_ALPHA'); const o = b.opacity * 2.55; R.quad(b.x, b.y, b.w * b.scale, b.h * b.scale, 0, [255, 255, 255, o]); R.flush(); }
-    if (cur() && inst && inst.prefab === cur()) { drawInst(inst); if (impact) drawInst(impact); } R.end();
+    for (const pf of scenePfs()) { const r = RT.get(pf.id); if (!r) continue; drawInst(r.inst); if (r.impact) drawInst(r.impact); }
+    R.end();
     drawOverlay();
     if (now - stT > 250) { stT = now; status(); }
     requestAnimationFrame(tick);
   }
   function status() {
-    const pf = cur(); $('#empty').classList.toggle('hide', !!pf);
-    $('#st').textContent = !pf ? 'Chưa mở prefab' : `${pf.kind === 'particle' ? 'Particle System' : 'Projectile'} · ${pf.name} · ${emitters(pf).length} emitter · ${inst ? inst.count() + (impact ? impact.count() : 0) : 0} hạt`;
+    const list = scenePfs(), pf = cur(); $('#empty').classList.toggle('hide', !!pf);
+    let cnt = 0, em = 0; for (const q of list) { em += emitters(q).length; const r = RT.get(q.id); if (r) cnt += r.inst.count() + (r.impact ? r.impact.count() : 0); }
+    $('#st').textContent = !pf ? 'Chưa mở prefab' : `${list.length} prefab · ${em} emitter · ${cnt} hạt · đang chọn: ${selNode() ? selNode().name : pf.name}`;
     $('#st2').textContent = pf && pf.kind === 'projectile' ? 'Đường bay chỉ để xem trước — khi xuất, prefab nằm tại (0,0)' : '';
     $('#zoom').textContent = Math.round(view().z * 100) + '%';
   }
   // ---- ảnh nền để ướm thử ----
   const refAsset = () => ({ id: '__ref', data: S.ref.data, w: S.ref.w, h: S.ref.h, trim: { x: 0, y: 0, w: S.ref.w, h: S.ref.h } });
+  const HINT = 'Lăn chuột: zoom · Giữ chuột phải hoặc phím cách + kéo: pan · Kéo chuột trái: di chuyển / xoay / co giãn thứ đang chọn (W / E / T)';
   function renderRef() {
     const bar = $('#refBar'), b = S.ref; bar.classList.toggle('hide', !b || b.locked); $('#btnRef').classList.toggle('on', !!b);
     if (b && !b.locked) { $('#refScale').value = b.scale; $('#refOp').value = b.opacity; }
-    $('#hint').textContent = b && !b.locked ? 'Đang chỉnh ảnh nền: kéo chuột trái để di chuyển ảnh · bấm Apply để khoá' : 'Lăn chuột: zoom · Giữ chuột phải hoặc phím cách + kéo: pan · Kéo chuột trái: di chuyển node đang chọn';
+    $('#hint').textContent = b && !b.locked ? 'Đang chỉnh ảnh nền: kéo chuột trái để di chuyển ảnh · bấm Apply để khoá' : HINT;
   }
   async function pickRef() { const fs = await pickFiles($('#fileImg')); if (!fs.length) return; const data = await readFile(fs[0]), img = await loadImg(data);
     S.ref = { data, w: img.naturalWidth, h: img.naturalHeight, x: 0, y: 0, scale: 1, opacity: 100, locked: false }; dirty(); renderRef(); }
@@ -247,6 +291,7 @@
     ctxMenu(r.left, r.bottom + 4, [[S.ref.locked ? 'Chỉnh lại vị trí ảnh nền' : 'Khoá ảnh nền (Apply)', () => { S.ref.locked = !S.ref.locked; dirty(); renderRef(); }], ['Đổi ảnh khác…', pickRef], ['Gỡ ảnh nền', () => { S.ref = null; dirty(); renderRef(); }]]);
   }
   function fit() { const v = view(); v.z = Math.max(.05, Math.min((viewEl.clientWidth - 80) / S.canvas.w, (viewEl.clientHeight - 110) / S.canvas.h)); v.x = 0; v.y = 12; }
+  function setTool(t) { tool = t; $$('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); }
 
   // chuột trong viewport
   let space = false, drag = null;
@@ -260,7 +305,8 @@
     else if (e.button === 0 && S.ref && !S.ref.locked) drag = { k: 'ref' };
     else if (e.button === 0 && pf) {
       if (pf.kind === 'projectile' && !S.hidePath) for (const [k, x, y] of [['s', pf.proj.sx, pf.proj.sy], ['e', pf.proj.ex, pf.proj.ey]]) { const s = w2s(x, y); if (Math.hypot(s[0] - mx, s[1] - my) < 13) drag = { k: 'pt', p: k }; }
-      if (!drag && selNode()) drag = { k: 'node' };
+      if (!drag) { const t = selNode() || pf, c = selPos() || { x: 0, y: 0 }, s = w2s(c.x, c.y);
+        drag = { k: 'xf', t, node: !!selNode(), a0: Math.atan2(-(my - s[1]), mx - s[0]), x0: e.clientX, rot: t.rot, sx: t.sx, sy: t.sy, cx: s[0] + r.left, cy: s[1] + r.top }; }
     }
     if (drag) { drag.x = e.clientX; drag.y = e.clientY; viewEl.setPointerCapture(e.pointerId); viewEl.style.cursor = drag.k === 'pan' ? 'grabbing' : 'move'; e.preventDefault(); }
   });
@@ -269,8 +315,14 @@
     if (drag.k === 'pan') { v.x += dx; v.y += dy; return; }
     if (drag.k === 'ref') { S.ref.x = Math.round(S.ref.x + dx / v.z); S.ref.y = Math.round(S.ref.y - dy / v.z); drag.moved = true; return; }
     const pf = cur(), wx = dx / v.z, wy = -dy / v.z;
-    if (drag.k === 'node') { const n = selNode(); n.x = r1(n.x + wx); n.y = r1(n.y + wy); }
-    else { const pj = pf.proj, k = drag.p; pj[k + 'x'] = Math.round(pj[k + 'x'] + wx); pj[k + 'y'] = Math.round(pj[k + 'y'] + wy); }
+    if (drag.k === 'pt') { const pj = pf.proj, k = drag.p; pj[k + 'x'] = Math.round(pj[k + 'x'] + wx); pj[k + 'y'] = Math.round(pj[k + 'y'] + wy); }
+    else { const t = drag.t;
+      if (tool === 'move') {
+        if (drag.node) { const m = lin(pf), det = m[0] * m[3] - m[1] * m[2] || 1; t.x = r1(t.x + (m[3] * wx - m[2] * wy) / det); t.y = r1(t.y + (-m[1] * wx + m[0] * wy) / det); }
+        else if (pf.kind === 'particle') { t.x = r1(t.x + wx); t.y = r1(t.y + wy); }
+      } else if (tool === 'rotate') { const a = Math.atan2(-(e.clientY - drag.cy), e.clientX - drag.cx); let d = (a - drag.a0) * 180 / Math.PI; t.rot = r1(drag.rot + d); if (e.shiftKey) t.rot = Math.round(t.rot / 15) * 15; }
+      else { const f = Math.max(.02, 1 + (e.clientX - drag.x0) / 150); t.sx = Math.round(drag.sx * f * 100) / 100; t.sy = Math.round(drag.sy * f * 100) / 100; }
+    }
     drag.moved = true; syncInputs();
   });
   const endDrag = () => { if (drag && drag.moved) dirty(); drag = null; viewEl.style.cursor = ''; };
@@ -316,12 +368,13 @@
     const pf = kind === 'particle' ? await newParticle(p, clean(n)) : await newProjectile(p, clean(n));
     S.folder = parentOf(pf.id).id; openPrefab(pf); dirty(); renderAssets();
   }
-  function openPrefab(pf) { S.tab = pf.kind; S.open[pf.kind] = pf.id; S.sel = pf.nodes[0] && pf.kind === 'particle' ? pf.nodes[0].id : null; restart(); renderAll(); dirty(); }
+  function openPrefab(pf) { S.tab = pf.kind; S.scene[S.tab] = [pf.id]; select(pf, pf.kind === 'particle' ? pf.nodes[0] : null); restart(); renderAll(); dirty(); }
   function removeAsset(a) {
     const ids = new Set(); walk(x => ids.add(x.id), a);
     const p = parentOf(a.id); p.children.splice(p.children.indexOf(a), 1); idx = null;
     walk(x => { if (x.type === 'prefab') { if (ids.has(x.seqAnim)) x.seqAnim = null; if (x.proj && ids.has(x.proj.impact)) x.proj.impact = null; x.nodes.forEach(n => { if (ids.has(n.image)) n.image = null; if (ids.has(n.anim)) n.anim = null; }); } if (x.type === 'anim') x.frames = x.frames.filter(f => !ids.has(f)); });
-    for (const k in S.open) if (ids.has(S.open[k])) S.open[k] = null;
+    for (const k in S.scene) S.scene[k] = S.scene[k].filter(id => !ids.has(id));
+    if (S.sel && ids.has(S.sel.pf)) select(scenePfs()[0] || null);
     if (ids.has(S.folder)) S.folder = p.id;
     restart(); dirty(); renderAll();
   }
@@ -347,7 +400,8 @@
   }
   function fileMenu(a, x, y) {
     const items = [];
-    if (a.type === 'prefab') items.push(['Mở', () => openPrefab(a)], ['Nhân bản', () => { const c = clone(a); delete c.id; c.nodes.forEach(n => n.id = uid()); const f = parentOf(a.id); c.name = a.name + '_copy'; add(f, c); dirty(); renderAssets(); }]);
+    if (a.type === 'prefab') items.push(['Mở riêng prefab này', () => openPrefab(a)], ['Thêm vào Node Tree', () => addToScene(a)]);
+    items.push(['Nhân bản (Ctrl+D)', () => dupAsset(a)]);
     items.push(['Đổi tên', () => renameAsset(a)], ['Xoá', async () => { if (await confirmDlg('Xoá', `Xoá "${esc(a.name)}"?`)) removeAsset(a); }]);
     ctxMenu(x, y, items);
   }
@@ -369,8 +423,8 @@
       else if (a.type === 'image') st = a.data;
       else if (a.type === 'anim') { const fr = byId(a.frames[0]); if (fr) st = fr.data; else ic = `<i class="an">${IC.anim}</i>`; }
       else ic = a.kind === 'particle' ? `<i class="pf">${IC.spark}</i>` : `<i class="pj">${IC.proj}</i>`;
-      const tip = { folder: 'Folder', image: `Ảnh ${a.w}×${a.h}`, anim: `Animation clip · ${a.frames ? a.frames.length : 0} hình`, prefab: a.kind === 'particle' ? 'Particle prefab — bấm đúp để mở' : 'Projectile prefab — bấm đúp để mở' }[a.type];
-      return `<div class="thumb ${S.open[S.tab] === a.id ? 'sel' : ''} ${S.selAsset === a.id ? 'pick' : ''}" data-aid="${a.id}" title="${esc(a.name)} · ${tip}"${a.type === 'folder' ? ` data-drop="folder:${a.id}"` : ''}>${ic || `<i style="background-image:url(${st})"></i>`}${esc(a.name)}</div>`;
+      const tip = { folder: 'Folder', image: `Ảnh ${a.w}×${a.h}`, anim: `Animation clip · ${a.frames ? a.frames.length : 0} hình`, prefab: a.kind === 'particle' ? 'Particle prefab — bấm đúp để mở riêng, kéo vào Node Tree để thêm' : 'Projectile prefab — bấm đúp để mở riêng, kéo vào Node Tree để thêm' }[a.type];
+      return `<div class="thumb ${(S.scene[S.tab] || []).includes(a.id) ? 'sel' : ''} ${S.selAsset === a.id ? 'pick' : ''}" data-aid="${a.id}" title="${esc(a.name)} · ${tip}"${a.type === 'folder' ? ` data-drop="folder:${a.id}"` : ''}>${ic || `<i style="background-image:url(${st})"></i>`}${esc(a.name)}</div>`;
     }).join('') || '<div class="note" style="padding:8px">Folder trống. Bấm chuột phải để tạo prefab hoặc import ảnh, hoặc kéo ảnh từ ngoài vào đây.</div>';
   }
   $('#ftree').addEventListener('click', e => { const r = e.target.closest('[data-fid]'); if (!r) return; area = 'ftree';
@@ -401,7 +455,7 @@
   const whiten = n => { if (n.type !== 'emitter' || !isBuiltin(n)) return; for (const k of ['startColor', 'endColor']) Object.assign(n.ps[k], { r: 255, g: 255, b: 255 }); };
   function dropAsset(drop, a) {
     const [k, id] = drop.split(':'), pf = cur(), n = selNode();
-    if (k === 'view' || k === 'tree') return openPrefab(a);
+    if (k === 'view' || k === 'tree') return addToScene(a);
     if (k === 'folder') return moveAsset(a, byId(id));
     if (k === 'img' && n) { if (!a.builtin) whiten(n); n.image = a.id; }
     if (k === 'seq' && pf) { emitters(pf).forEach(whiten); pf.seqAnim = a.id; }
@@ -432,29 +486,86 @@
 
   // ================= render: node tree =================
   function renderTree() {
-    const pf = cur(); if (!pf) { $('#treeList').innerHTML = '<div class="note" style="padding:8px 10px">Chưa mở prefab.</div>'; return; }
-    $('#treeList').innerHTML = `<div class="row-item ${!S.sel ? 'sel' : ''}" data-nid="">${IC.root}<span>${esc(pf.name)}</span></div>` + pf.nodes.map(n =>
-      `<div class="row-item ${n.id === S.sel ? 'sel' : ''} ${n.hidden ? 'off' : ''}" style="padding-left:26px" data-nid="${n.id}" title="Bấm đúp để đổi tên">${IC[n.type]}<span>${esc(n.name)}</span><button class="mini" data-act="eye" title="Ẩn / hiện trong xem trước">${IC.eye}</button>${n.type === 'emitter' ? `<button class="mini" data-act="del" title="Xoá emitter (Delete)">${IC.x}</button>` : ''}</div>`).join('');
-    $('#btnAddNode').title = pf.kind === 'particle' ? 'Thêm emitter' : 'Thêm emitter đuôi (trail)';
+    const list = scenePfs(), c = cur(), sn = selNode();
+    if (!list.length) { $('#treeList').innerHTML = '<div class="note" style="padding:8px 10px">Chưa có prefab. Kéo prefab từ Assets vào đây.</div>'; return; }
+    $('#treeList').innerHTML = list.map(pf =>
+      `<div class="row-item ${pf === c && !sn ? 'sel' : ''} ${pf.hidden ? 'off' : ''}" data-pf="${pf.id}" data-nid="" data-key="${pf.id}" title="Bấm đúp để đổi tên · giữ và kéo để đổi thứ tự">${pf.kind === 'particle' ? IC.root : IC.proj}<span>${esc(pf.name)}</span><button class="mini" data-act="eye" title="Ẩn / hiện trong xem trước">${IC.eye}</button><button class="mini" data-act="del" title="Bỏ khỏi Node Tree (Delete) — file trong Assets vẫn còn">${IC.x}</button></div>` +
+      pf.nodes.map(n => `<div class="row-item ${n === sn ? 'sel' : ''} ${n.hidden || pf.hidden ? 'off' : ''}" style="padding-left:26px" data-pf="${pf.id}" data-nid="${n.id}" data-key="${n.id}" title="Bấm đúp để đổi tên · giữ và kéo để đổi thứ tự">${IC[n.type]}<span>${esc(n.name)}</span><button class="mini" data-act="eye" title="Ẩn / hiện trong xem trước">${IC.eye}</button><button class="mini" data-act="del" title="Xoá (Delete)">${IC.x}</button></div>`).join('')).join('');
   }
-  function delNode(id) { const pf = cur(), i = pf.nodes.findIndex(n => n.id === id); if (i < 0 || pf.nodes[i].type !== 'emitter') return; pf.nodes.splice(i, 1); if (S.sel === id) S.sel = null; restart(); dirty(); renderTree(); renderProps(); }
+  // vẽ lại danh sách có animation trượt (FLIP) theo data-key
+  function flipRender(box, render) {
+    const first = new Map([...box.querySelectorAll('[data-key]')].map(el => [el.dataset.key, el.getBoundingClientRect()]));
+    render();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    box.querySelectorAll('[data-key]').forEach(el => { const a = first.get(el.dataset.key); if (!a) return; const b = el.getBoundingClientRect(), dx = a.left - b.left, dy = a.top - b.top; if (!dx && !dy) return;
+      el.style.transition = 'none'; el.style.transform = `translate(${dx}px,${dy}px)`;
+      requestAnimationFrame(() => { el.style.transition = 'transform var(--t-med) var(--ease-out)'; el.style.transform = ''; }); });
+  }
+  const pfOf = id => scenePfs().find(p => p.id === id);
+  function delNode(pf, id) { const i = pf.nodes.findIndex(n => n.id === id); if (i < 0) return; pf.nodes.splice(i, 1); if (S.sel && S.sel.node === id) select(pf); RT.delete(pf.id); dirty(); flipRender($('#treeList'), renderTree); renderProps(); }
+  function unscene(pf) { const l = S.scene[S.tab], i = l.indexOf(pf.id); if (i < 0) return; l.splice(i, 1); select(scenePfs()[Math.min(i, l.length - 1)] || null); dirty(); flipRender($('#treeList'), renderTree); renderProps(); renderAssets(); toast(`Đã bỏ "${esc(pf.name)}" khỏi Node Tree. File trong Assets vẫn còn.`); }
+  function delSelected() { const pf = cur(); if (!pf || !S.sel) return; const n = selNode(); if (n) delNode(pf, n.id); else unscene(pf); }
+  function addToScene(pf, after) {
+    const l = S.scene[S.tab]; if (l.includes(pf.id)) { select(pf); renderAll(); return toast(`"${esc(pf.name)}" đã có trong Node Tree`); }
+    const i = after ? l.indexOf(after.id) + 1 : l.length; l.splice(i, 0, pf.id); select(pf); dirty(); flipRender($('#treeList'), renderTree); renderProps(); renderAssets(); renderPathBtn();
+  }
+  function dupAsset(a) {
+    if (!a || a.type === 'folder') { toast('Chỉ nhân bản được file (prefab, ảnh, animation clip)'); return null; }
+    const c = clone(a); delete c.id; if (c.nodes) c.nodes.forEach(n => n.id = uid()); if (c.sub) c.sub = uuid4();
+    c.name = a.name + '_copy'; add(parentOf(a.id), c); dirty(); renderAssets(); return c;
+  }
+  // Ctrl+D: nhân bản node đang chọn, hoặc cả prefab nếu đang chọn gốc
+  function dupSelected() {
+    const pf = cur(); if (!pf) return; const n = selNode();
+    if (n) { const c = Object.assign(clone(n), { id: uid(), name: nodeName(pf, n.name.replace(/_\d+$/, '')) }); pf.nodes.splice(pf.nodes.indexOf(n) + 1, 0, c); select(pf, c); dirty(); flipRender($('#treeList'), renderTree); renderProps(); }
+    else { const c = dupAsset(pf); if (c) addToScene(c, pf); }
+  }
+  // bấm chọn / nút ẩn / nút xoá
   $('#treeList').addEventListener('click', e => {
-    const r = e.target.closest('[data-nid]'); if (!r) return; const pf = cur(), b = e.target.closest('[data-act]');
-    if (b) { if (b.dataset.act === 'del') return delNode(r.dataset.nid); const n = pf.nodes.find(n => n.id === r.dataset.nid); n.hidden = !n.hidden; dirty(); return renderTree(); }
-    S.sel = r.dataset.nid || null; renderTree(); renderProps();
+    const r = e.target.closest('[data-pf]'); if (!r) return; const pf = pfOf(r.dataset.pf); if (!pf) return; const n = pf.nodes.find(x => x.id === r.dataset.nid), b = e.target.closest('[data-act]');
+    if (b) { if (b.dataset.act === 'del') return n ? delNode(pf, n.id) : unscene(pf); const t = n || pf; t.hidden = !t.hidden; dirty(); return renderTree(); }
   });
-  $('#treeList').addEventListener('pointerdown', () => area = 'tree'); viewEl.addEventListener('pointerdown', () => area = 'tree');
   $('#treeList').addEventListener('dblclick', async e => {
-    const r = e.target.closest('[data-nid]'); if (!r || e.target.closest('[data-act]')) return; const pf = cur();
+    const r = e.target.closest('[data-pf]'); if (!r || e.target.closest('[data-act]')) return; const pf = pfOf(r.dataset.pf); if (!pf) return;
     if (!r.dataset.nid) return renameAsset(pf);
-    const n = pf.nodes.find(n => n.id === r.dataset.nid), v = await ask('Đổi tên node', 'Tên mới', n.name); if (!v) return;
+    const n = pf.nodes.find(x => x.id === r.dataset.nid), v = await ask('Đổi tên node', 'Tên mới', n.name); if (!v) return;
     let name = clean(v); if (pf.nodes.some(x => x !== n && x.name === name)) name = nodeName(pf, name); n.name = name; dirty(); renderTree(); renderProps();
   });
-  $('#btnAddNode').onclick = async () => {
-    const pf = cur(); if (!pf) return; const src = selNode() && selNode().type === 'emitter' ? selNode() : emitters(pf)[emitters(pf).length - 1];
-    const base = src ? src.name.replace(/_\d+$/, '') : 'Emitter';
-    const n = src ? Object.assign(clone(src), { id: uid(), name: nodeName(pf, base) }) : { id: uid(), type: 'emitter', name: nodeName(pf, base), x: 0, y: 0, image: (await builtinImg(projectOf(pf), 'Circle')).id, ps: defPS() };
-    pf.nodes.splice(src ? pf.nodes.indexOf(src) + 1 : 0, 0, n); S.sel = n.id; if (!src && pf.kind === 'particle') applyMode(pf, [n]); dirty(); renderAll();
+  // giữ và kéo để đổi thứ tự (node trong cùng prefab, hoặc các prefab với nhau)
+  let td = null;
+  $('#treeList').addEventListener('pointerdown', e => {
+    area = 'tree'; const r = e.target.closest('[data-pf]'); if (!r || e.button !== 0 || e.target.closest('[data-act]')) return; const pf = pfOf(r.dataset.pf); if (!pf) return;
+    const n = pf.nodes.find(x => x.id === r.dataset.nid) || null;
+    if (!S.sel || S.sel.pf !== pf.id || S.sel.node !== (n ? n.id : null)) { select(pf, n); $$('#treeList .row-item').forEach(x => x.classList.toggle('sel', x === r)); renderProps(); renderPathBtn(); }
+    td = { pf, n, x: e.clientX, y: e.clientY, g: null, to: null };
+  });
+  viewEl.addEventListener('pointerdown', () => area = 'tree');
+  document.addEventListener('pointermove', e => {
+    if (!td) return; const box = $('#treeList');
+    if (!td.g) { if (Math.hypot(e.clientX - td.x, e.clientY - td.y) < 5) return; td.g = document.createElement('div'); td.g.className = 'ghost'; td.g.textContent = td.n ? td.n.name : td.pf.name; document.body.append(td.g);
+      td.line = document.createElement('div'); td.line.className = 'dropline'; box.append(td.line); document.body.style.cursor = 'grabbing'; }
+    td.g.style.left = e.clientX + 12 + 'px'; td.g.style.top = e.clientY + 10 + 'px'; td.to = null;
+    const el = document.elementFromPoint(e.clientX, e.clientY), row = el && el.closest('#treeList [data-pf]'); let y = null;
+    if (row) { const rc = row.getBoundingClientRect(), below = e.clientY > rc.top + rc.height / 2, tp = pfOf(row.dataset.pf), bx = box.getBoundingClientRect();
+      if (td.n) { if (tp === td.pf) { const i = row.dataset.nid ? td.pf.nodes.findIndex(x => x.id === row.dataset.nid) + (below ? 1 : 0) : 0; td.to = { i }; y = (row.dataset.nid && !below ? rc.top : rc.bottom); } }
+      else if (tp) { const l = S.scene[S.tab], rows = [...box.querySelectorAll(`[data-pf="${tp.id}"]`)], top = rows[0].getBoundingClientRect().top, bot = rows[rows.length - 1].getBoundingClientRect().bottom, after = e.clientY > (top + bot) / 2;
+        td.to = { i: l.indexOf(tp.id) + (after ? 1 : 0) }; y = after ? bot : top; }
+      if (y !== null) td.line.style.top = y - bx.top + box.scrollTop - 1 + 'px'; }
+    td.line.style.display = td.to ? 'block' : 'none';
+  });
+  document.addEventListener('pointerup', () => {
+    if (!td) return; const d = td; td = null; document.body.style.cursor = ''; if (!d.g) return; d.g.remove(); d.line.remove(); if (!d.to) return;
+    const arr = d.n ? d.pf.nodes : S.scene[S.tab], item = d.n || d.pf.id, from = arr.indexOf(item); let to = d.to.i; if (to > from) to--; if (to === from) return;
+    arr.splice(from, 1); arr.splice(to, 0, item); if (d.n) RT.delete(d.pf.id); dirty(); flipRender($('#treeList'), renderTree);
+  });
+  $('#btnAddNode').onclick = async e => {
+    const pf = cur(); if (!pf) return toast('Chưa có prefab trong Node Tree');
+    const addEm = async () => { const src = selNode() && selNode().type === 'emitter' ? selNode() : emitters(pf)[emitters(pf).length - 1], base = src ? src.name.replace(/_\d+$/, '') : 'Emitter';
+      const n = src ? Object.assign(clone(src), { id: uid(), name: nodeName(pf, base) }) : { id: uid(), type: 'emitter', name: nodeName(pf, base), x: 0, y: 0, image: (await builtinImg(projectOf(pf), 'Circle')).id, ps: defPS() };
+      pf.nodes.splice(src ? pf.nodes.indexOf(src) + 1 : 0, 0, n); if (!src && pf.kind === 'particle') applyMode(pf, [n]); select(pf, n); dirty(); renderAll(); };
+    if (pf.kind === 'particle') return addEm();
+    const r = e.currentTarget.getBoundingClientRect();
+    ctxMenu(r.left - 150, r.bottom + 4, [['Thêm emitter (đuôi / trail)', addEm], ['Thêm Head (sprite)', async () => { const n = { id: uid(), type: 'sprite', name: nodeName(pf, 'Head'), x: 0, y: 0, image: (await builtinImg(projectOf(pf), 'Glow')).id, anim: null, srcBlend: 'SRC_ALPHA', dstBlend: 'ONE' }; pf.nodes.push(n); select(pf, n); dirty(); renderAll(); }]]);
   };
 
   // ================= render: properties =================
@@ -475,10 +586,11 @@
     if (asset && asset.type === 'image') bg = asset.data; else if (asset && asset.type === 'anim') { const f = byId(asset.frames[0]); if (f) bg = f.data; } else if (asset && asset.type === 'prefab') ic = IC.spark;
     return `<div class="slot" data-drop="${drop}" data-pick="${drop}" title="Bấm để chọn file, hoặc kéo từ Assets / từ ngoài vào"><i ${bg ? `style="background-image:url(${bg})"` : ''}>${ic}</i><span><b>${asset ? esc(asset.name) : title}</b>${sub}</span>${asset && clear ? `<button class="mini" data-clear="${clear}" title="Gỡ">${IC.x}</button>` : ''}</div>`;
   }
+  const nodeSec = (o, title, pos = true) => `<div class="sec"><b>${title}</b>${pos ? row('Position', num(o, 'x', 'X'), num(o, 'y', 'Y')) : ''}${row('Rotation', num(o, 'rot', 'Góc xoay (độ, ngược chiều kim đồng hồ)'), '<small>độ</small>')}${row('Scale', num(o, 'sx', 'Scale X'), num(o, 'sy', 'Scale Y'))}</div>`;
   function emitterProps(n, seqOn) {
     const s = n.ps, g = s.emitterMode === 0;
     return `<div class="sec"><b>Hình ảnh hạt</b>${slot('img', byId(n.image), 'Sprite Frame', seqOn ? 'Đang dùng chuỗi hình. Ảnh này dùng khi gỡ chuỗi hình' : 'Kéo ảnh vào đây hoặc bấm để chọn')}</div>
-    <div class="sec"><b>Node</b>${row('Position', num('node', 'x', 'X'), num('node', 'y', 'Y'))}</div>
+    ${nodeSec('node', 'Node')}
     <div class="sec"><b>ParticleSystem</b>
       ${fN('Duration', 'node', 'ps.duration', '', 'Thời gian phát (giây). -1 = loop mãi')}${fN('Emission Rate', 'node', 'ps.emissionRate', '', 'Số hạt sinh ra mỗi giây')}${fN('Life', 'node', 'ps.life', 'ps.lifeVar', 'Thời gian sống của hạt (giây) và độ lệch')}${fN('Total Particles', 'node', 'ps.totalParticles', '', 'Số hạt tối đa cùng lúc')}
       ${fCol('Start Color', 'node', 'ps.startColor')}${fCol('Start Color Var', 'node', 'ps.startColorVar')}${fCol('End Color', 'node', 'ps.endColor')}${fCol('End Color Var', 'node', 'ps.endColorVar')}
@@ -501,7 +613,7 @@
         <div class="f" style="margin-top:8px"><label>Import</label><button class="btn w2" data-dir="seq" title="Chọn folder chứa chuỗi PNG — tự tạo Animation clip và gán vào mọi emitter">Import folder chuỗi hình…</button></div>
         ${an ? row('Tốc độ (fps)', num(an.id, 'sample', 'Số hình mỗi giây'), `<small>${an.frames.length} hình</small>`) : ''}</div>`;
       if (n) h += emitterProps(n, !!an);
-      else h += `<div class="sec"><div class="note" style="margin:0">Chọn 1 emitter ở Node Tree để chỉnh thông số ParticleSystem và ảnh của hạt.</div></div>`;
+      else h += nodeSec('pf', 'Node gốc (' + esc(pf.name) + ')') + `<div class="sec"><div class="note" style="margin:0">Chọn 1 emitter ở Node Tree để chỉnh thông số ParticleSystem và ảnh của hạt. Position của node gốc chỉ để sắp xếp khi xem trước; Rotation và Scale được xuất vào prefab.</div></div>`;
     } else if (!n) {
       const pj = pf.proj, ip = byId(pj.impact);
       h += `<div class="sec"><b>Preset đường bay</b><div class="presets">${Object.entries(M.sim.PRESETS).map(([k, p]) => `<div class="chip ${pj.preset === k ? 'on' : ''}" data-preset="${k}"><svg viewBox="0 0 80 46">${[0, 1, 2].map(i => `<path d="${chipPath(k, i)}" stroke="${p.color}" opacity="${i ? .4 : 1}"/>`).join('')}</svg>${p.name}</div>`).join('')}</div>
@@ -511,13 +623,13 @@
         ${fSel('Tốc độ', 'proj', 'ease', [['linear', 'Đều'], ['in', 'Nhanh dần'], ['out', 'Chậm dần'], ['inout', 'Chậm – nhanh – chậm']])}
         <div class="f"><label>Xoay theo hướng</label>${seg('proj', 'rotateDir', [[true, 'Có'], [false, 'Không']])}</div>${row('Góc lệch', num('proj', 'rotOffset'), '<small>độ</small>', 'Xoay thêm cho Head')}</div>
       <div class="sec"><b>FX bung ra ở điểm cuối</b>${slot('impact', ip, 'Không có FX', ip ? 'Particle prefab · bấm ✕ để gỡ' : 'Kéo 1 Particle prefab từ Assets vào đây', 'impact')}
-        <div class="note">FX này là prefab riêng nằm cùng folder, được xuất kèm trong zip.</div></div>`;
+        <div class="note">FX này là prefab riêng nằm cùng folder, được xuất kèm trong zip.</div></div>` + nodeSec('pf', 'Node gốc (' + esc(pf.name) + ')', false);
     } else if (n.type === 'sprite') {
       const an = byId(n.anim);
       h += `<div class="sec"><b>Head (đầu đạn)</b>${slot('sanim', an || byId(n.image), 'Sprite Frame', an ? `Chuỗi ${an.frames.length} hình · Animation clip` : 'Kéo ảnh hoặc Animation clip vào đây', an ? 'sanim' : '')}
         <div class="f" style="margin-top:8px"><label>Import</label><button class="btn w2" data-dir="sanim" title="Chọn folder chứa chuỗi PNG cho Head">Import folder chuỗi hình…</button></div>
         ${an ? row('Tốc độ (fps)', num(an.id, 'sample'), `<small>${an.frames.length} hình</small>`) : ''}</div>
-      <div class="sec"><b>Node</b>${row('Position', num('node', 'x', 'X'), num('node', 'y', 'Y'))}${row('Scale', num('node', 'scale', 'Kích thước Head (1 = 100%)'), '<small>× kích thước ảnh</small>')}${fSel('Src Blend Factor', 'node', 'srcBlend', BL)}${fSel('Dst Blend Factor', 'node', 'dstBlend', BL)}</div>`;
+      ${nodeSec('node', 'Node')}<div class="sec"><b>Blend</b>${fSel('Src Blend Factor', 'node', 'srcBlend', BL)}${fSel('Dst Blend Factor', 'node', 'dstBlend', BL)}</div>`;
     } else h += emitterProps(n, false);
     P.innerHTML = h;
   }
@@ -534,8 +646,8 @@
   P.addEventListener('click', async e => {
     const pf = cur(), n = selNode(); let b;
     if ((b = e.target.closest('[data-clear]'))) { e.stopPropagation(); const k = b.dataset.clear; if (k === 'seq') pf.seqAnim = null; if (k === 'sanim') n.anim = null; if (k === 'impact') pf.proj.impact = null; dirty(); return renderProps(); }
-    if ((b = e.target.closest('[data-seg]'))) { const [o, k, v] = b.dataset.seg.split('|'); sp(target(o), k, v === 'true' ? true : v === 'false' ? false : v); if (k === 'mode') applyMode(pf); if (k === 'play') applyPlay(pf); restart(); dirty(); return renderProps(); }
-    if ((b = e.target.closest('[data-preset]'))) { pf.proj.preset = b.dataset.preset; dirty(); renderProps(); return startFly(); }
+    if ((b = e.target.closest('[data-seg]'))) { const [o, k, v] = b.dataset.seg.split('|'); sp(target(o), k, v === 'true' ? true : v === 'false' ? false : v); if (k === 'mode') applyMode(pf); if (k === 'play') applyPlay(pf); RT.delete(pf.id); dirty(); return renderProps(); }
+    if ((b = e.target.closest('[data-preset]'))) { pf.proj.preset = b.dataset.preset; dirty(); renderProps(); RT.delete(pf.id); return; }
     if ((b = e.target.closest('[data-dir]'))) { const fs = (await pickFiles($('#fileDir'))).filter(isImg); if (!fs.length) return toast('Folder không có ảnh PNG/JPG nào'); const nm = (fs[0].webkitRelativePath || '').split('/')[0]; return slotFiles(b.dataset.dir, fs, nm); }
     if ((b = e.target.closest('[data-pick]'))) { const k = b.dataset.pick; if (k === 'impact' || k === 'seq') return; const fs = await pickFiles($('#fileImg')); if (fs.length) slotFiles(k, fs); }
   });
@@ -573,7 +685,9 @@
 
   // ================= header =================
   function renderTabs() { $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === S.tab)); const b = $('.tab.on'), bar = $('#tabbar'); bar.style.left = b.offsetLeft + 'px'; bar.style.width = b.offsetWidth + 'px'; }
-  $('#tabs').addEventListener('click', e => { const t = e.target.dataset.t; if (!t || t === S.tab) return; S.tab = t; S.sel = null; restart(); renderAll(); dirty(); });
+  $('#tabs').addEventListener('click', e => { const t = e.target.dataset.t; if (!t || t === S.tab) return; S.tab = t; select(scenePfs()[0] || null); restart(); renderAll(); dirty(); });
+  $('#btnUndo').onclick = undo; $('#btnRedo').onclick = redo;
+  $('#tools').addEventListener('click', e => { const t = e.target.dataset.tool; if (t) setTool(t); });
   ['cw', 'ch'].forEach((id, i) => $('#' + id).addEventListener('input', e => { const v = parseInt(e.target.value); if (v > 0) { S.canvas[i ? 'h' : 'w'] = v; dirty(); } }));
   $('#btnPlay').onclick = () => { playing = !playing; $('#btnPlay').textContent = playing ? 'Dừng' : 'Phát'; };
   $('#btnRestart').onclick = () => { restart(); if (!playing) $('#btnPlay').click(); };
@@ -589,12 +703,17 @@
   document.addEventListener('keydown', e => {
     if (e.code === 'Space' && !typing(e)) { space = true; e.preventDefault(); if (!e.repeat) spaceT = performance.now(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); return exportDlg(); }
+    if (e.ctrlKey && !$('.modal')) { const k = e.key.toLowerCase();
+      if (k === 'z') { e.preventDefault(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return e.shiftKey ? redo() : undo(); }
+      if (k === 'y') { e.preventDefault(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return redo(); }
+      if (k === 'd' && !typing(e)) { e.preventDefault(); return area === 'assets' ? dupAsset(byId(S.selAsset)) : dupSelected(); } }
     if (typing(e) || $('.modal') || e.ctrlKey || e.altKey) return;
     if (e.key.toLowerCase() === 'r') $('#btnRestart').click(); if (e.key.toLowerCase() === 'f') fit();
+    const tk = { w: 'move', e: 'rotate', t: 'scale' }[e.key.toLowerCase()]; if (tk) setTool(tk);
     if (e.key === 'Delete') {
       const a = area === 'assets' ? byId(S.selAsset) : area === 'ftree' ? byId(S.folder) : null;
       if (a && a !== S.root) confirmDlg('Xoá', `Xoá "${esc(a.name)}"${a.type === 'folder' ? ' và mọi thứ bên trong' : ''}?`).then(ok => { if (ok) { S.selAsset = null; removeAsset(a); } });
-      else if (area === 'tree' && S.sel) delNode(S.sel);
+      else if (area === 'tree') delSelected();
     }
   });
   let spaceT = 0;
@@ -645,22 +764,22 @@
       m.querySelector('#sReset').onclick = async () => { close(); if (await confirmDlg('Tạo lại project mẫu', 'Xoá toàn bộ assets hiện tại và tạo lại project mẫu ban đầu?', 'Tạo lại')) { await bootstrap(); restart(); fitAll(); renderAll(); dirty(); } }; });
 
   // ================= khởi động =================
-  function renderPathBtn() { const b = $('#btnPath'); b.classList.toggle('hide', S.tab !== 'projectile'); b.classList.toggle('on', !S.hidePath); b.textContent = S.hidePath ? 'Hiện đường bay' : 'Ẩn đường bay'; }
-  function renderAll() { applyLayout(); renderPathBtn(); renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
+  function renderPathBtn() { const b = $('#btnPath'); b.classList.toggle('hide', !scenePfs().some(p => p.kind === 'projectile')); b.classList.toggle('on', !S.hidePath); b.textContent = S.hidePath ? 'Hiện đường bay' : 'Ẩn đường bay'; }
+  function renderAll() { undoBtns(); applyLayout(); renderPathBtn(); renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
   function fitAll() { const t = S.tab; for (const k of ['particle', 'projectile']) { S.tab = k; fit(); } S.tab = t; }
   async function init() {
     if (api) document.documentElement.classList.add('electron');
     const saved = await load();
     if (saved) { try { S = JSON.parse(saved); if (!S.root || !S.canvas) throw 0; } catch (e) { S = null; } }
     if (!S) await bootstrap();
-    idx = null; walk(a => { if (a.type === 'image') a.trim = { x: 0, y: 0, w: a.w, h: a.h }; if (a.type === 'prefab') a.nodes.forEach(n => { if (n.type === 'sprite' && !(n.scale > 0)) n.scale = 1; }); });
+    idx = null; normAll(); if (!S.sel) select(scenePfs()[0] || null);
     R = new M.Renderer($('#gl'));
     await Promise.all(all().filter(a => a.type === 'image').map(a => { const i = M.imgOf(a); return i.complete ? 0 : new Promise(ok => { i.onload = i.onerror = ok; }); }));
-    fitAll(); restart(); renderAll();
+    fitAll(); restart(); setTool('move'); base = snap(); renderAll();
     window.addEventListener('resize', renderTabs);
     requestAnimationFrame(t => { last = t; tick(t); });
     setTimeout(() => checkUpdate(false), 1200);
-    M.debug = { S: () => S, all, byId, exportBuild: (id, v) => M.exporter.build(byId(id), v, all()), makeSequence, cur, projectOf, renderAll, dirty };
+    M.debug = { S: () => S, all, byId, exportBuild: (id, v) => M.exporter.build(byId(id), v, all()), makeSequence, cur, projectOf, renderAll, dirty, selNode, scene: scenePfs, hist: () => [hist.length, redoS.length] };
   }
   init();
 })(window.M = window.M || {});

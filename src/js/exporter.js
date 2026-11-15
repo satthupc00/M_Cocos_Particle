@@ -41,11 +41,11 @@
       rotatePerS: s.rotatePerS, rotatePerSVar: s.rotatePerSVar, '_N$preview': true, _id: ''
     };
   }
-  function node2(name, parent, level, x, y, w, h, sc = 1) {
+  function node2(name, parent, level, x, y, w, h, t = {}) {
     return {
       __type__: 'cc.Node', _name: name, _objFlags: 0, _parent: parent, _children: [], _active: true, _level: level, _components: [], _prefab: null,
       _opacity: 255, _color: { __type__: 'cc.Color', r: 255, g: 255, b: 255, a: 255 }, _contentSize: { __type__: 'cc.Size', width: w, height: h },
-      _anchorPoint: v2(0.5, 0.5), _position: v3(x, y, 0), _scale: v3(sc, sc, 1), _eulerAngles: v3(0, 0, 0), _skewX: 0, _skewY: 0, _is3DNode: false, groupIndex: 0, _id: ''
+      _anchorPoint: v2(0.5, 0.5), _position: v3(x, y, 0), _scale: v3(t.sx || 1, t.sy || 1, 1), _eulerAngles: v3(0, 0, t.rot || 0), _skewX: 0, _skewY: 0, _is3DNode: false, groupIndex: 0, _id: ''
     };
   }
   const anim2 = (id, clip) => ({ __type__: 'cc.Animation', _name: '', _objFlags: 0, node: { __id__: id }, _enabled: true, _defaultClip: { __uuid__: clip.uuid }, _clips: [{ __uuid__: clip.uuid }], playOnLoad: true, _id: '' });
@@ -53,19 +53,19 @@
   function prefab2(pf, get) {
     const out = [{ __type__: 'cc.Prefab', _name: '', _objFlags: 0, _native: '', data: { __id__: 1 }, optimizationPolicy: 0, asyncLoadAssets: false, readonly: false }];
     const info = () => ({ __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __uuid__: pf.uuid }, fileId: fileId(), sync: false });
-    const root = node2(pf.name, null, 1, 0, 0, 0, 0); out.push(root);
+    const root = node2(pf.name, null, 1, 0, 0, 0, 0, pf); out.push(root);
     const seq = pf.kind === 'particle' && get(pf.seqAnim), ems = pf.nodes.filter(n => n.type === 'emitter');
     for (const n of pf.nodes) {
       const id = out.length; let img = get(n.image);
       if (n.type === 'emitter') {
         if (seq) img = seqFrames(seq, ems.indexOf(n), ems.length, get)[0] || img;
-        const nd = node2(n.name, { __id__: 1 }, 2, n.x, n.y, 0, 0); out.push(nd);
+        const nd = node2(n.name, { __id__: 1 }, 2, n.x, n.y, 0, 0, n); out.push(nd);
         nd._components.push({ __id__: out.length }); out.push(ps2(n, id, img));
         nd._prefab = { __id__: out.length }; out.push(info());
       } else {
         const an = get(n.anim); if (an) img = get(an.frames[0]) || img;
         const t = img ? trimOf(img) : { w: 0, h: 0 };
-        const nd = node2(n.name, { __id__: 1 }, 2, n.x, n.y, t.w, t.h, n.scale || 1); out.push(nd);
+        const nd = node2(n.name, { __id__: 1 }, 2, n.x, n.y, t.w, t.h, n); out.push(nd);
         nd._components.push({ __id__: out.length });
         out.push({
           __type__: 'cc.Sprite', _name: n.name + '<Sprite>', _objFlags: 0, node: { __id__: id }, _enabled: true, _materials: [{ __uuid__: MAT2D }],
@@ -134,18 +134,18 @@
   }
   function prefab3(pf, get) {
     const out = [{ __type__: 'cc.Prefab', _name: pf.name, _objFlags: 0, _native: '', data: { __id__: 1 }, optimizationPolicy: 0, persistent: false, asyncLoadAssets: false }];
-    const node3 = (name, parent, x, y, sc = 1) => { const o = { __type__: 'cc.Node', _name: name, _objFlags: 0 }; if (!parent) o.__editorExtras__ = {};
-      return Object.assign(o, { _parent: parent, _children: [], _active: true, _components: [], _prefab: null, _lpos: v3(x, y, 0), _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: 0, w: 1 }, _lscale: v3(sc, sc, 1), _layer: 33554432, _euler: v3(0, 0, 0), _id: '' }); };
+    const node3 = (name, parent, x, y, t = {}) => { const hr = (t.rot || 0) * Math.PI / 360; const o = { __type__: 'cc.Node', _name: name, _objFlags: 0 }; if (!parent) o.__editorExtras__ = {};
+      return Object.assign(o, { _parent: parent, _children: [], _active: true, _components: [], _prefab: null, _lpos: v3(x, y, 0), _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: Math.sin(hr), w: Math.cos(hr) }, _lscale: v3(t.sx || 1, t.sy || 1, 1), _layer: 33554432, _euler: v3(0, 0, t.rot || 0), _id: '' }); };
     // thêm component + CompPrefabInfo ngay sau
     const addComp = (nd, make) => { const cid = out.length; nd._components.push({ __id__: cid }); out.push(make(cid + 1)); out.push({ __type__: 'cc.CompPrefabInfo', fileId: fileId() }); };
     const ui = (nid, w, h) => pid => ({ __type__: 'cc.UITransform', _name: '', _objFlags: 0, node: { __id__: nid }, _enabled: true, __prefab: { __id__: pid }, _contentSize: { __type__: 'cc.Size', width: w, height: h }, _anchorPoint: v2(0.5, 0.5), _id: '' });
     const anim = (nid, clip) => pid => { const r = { __uuid__: clip.uuid, __expectedType__: 'cc.AnimationClip' }; return { __type__: 'cc.Animation', _name: '', _objFlags: 0, node: { __id__: nid }, _enabled: true, __prefab: { __id__: pid }, playOnLoad: true, _clips: [r], _defaultClip: r, _id: '' }; };
     const info = () => ({ __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __id__: 0 }, fileId: fileId() });
-    const root = node3(pf.name, null, 0, 0); out.push(root);
+    const root = node3(pf.name, null, 0, 0, pf); out.push(root);
     const seq = pf.kind === 'particle' && get(pf.seqAnim), ems = pf.nodes.filter(n => n.type === 'emitter');
     for (const n of pf.nodes) {
       const id = out.length; let img = get(n.image);
-      const nd = node3(n.name, { __id__: 1 }, n.x, n.y, n.type === 'sprite' ? n.scale || 1 : 1); out.push(nd); root._children.push({ __id__: id });
+      const nd = node3(n.name, { __id__: 1 }, n.x, n.y, n); out.push(nd); root._children.push({ __id__: id });
       if (n.type === 'emitter') {
         if (seq) img = seqFrames(seq, ems.indexOf(n), ems.length, get)[0] || img;
         addComp(nd, ui(id, 100, 100)); addComp(nd, pid => ps3(n, id, pid, img));

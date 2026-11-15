@@ -50,14 +50,15 @@
       const r = -rotDeg * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r), hw = w / 2, hh = h / 2, t = this.tr;
       const u0 = t.x / this.aw, u1 = (t.x + t.w) / this.aw, v0 = t.y / this.ah, v1 = (t.y + t.h) / this.ah;
       const P = [[-hw, -hh, u0, v1], [hw, -hh, u1, v1], [-hw, hh, u0, v0], [hw, hh, u1, v0]];
-      const d = this.data; let o = this.n * 48;
+      const d = this.data, m = this.m || [1, 0, 0, 1], tx = this.tx || 0, ty = this.ty || 0; let o = this.n * 48;
       for (const i of [0, 1, 2, 2, 1, 3]) {
         const q = P[i];
-        d[o++] = x + q[0] * cs - q[1] * sn; d[o++] = y + q[0] * sn + q[1] * cs; d[o++] = q[2]; d[o++] = q[3];
+        const lx = x + q[0] * cs - q[1] * sn, ly = y + q[0] * sn + q[1] * cs; d[o++] = tx + m[0] * lx + m[2] * ly; d[o++] = ty + m[1] * lx + m[3] * ly; d[o++] = q[2]; d[o++] = q[3];
         d[o++] = col[0] / 255; d[o++] = col[1] / 255; d[o++] = col[2] / 255; d[o++] = col[3] / 255;
       }
       this.n++;
     }
+    mat(m, tx, ty) { this.m = m; this.tx = tx; this.ty = ty; }
     flush() { if (!this.n) return; const gl = this.gl; gl.bufferData(gl.ARRAY_BUFFER, this.data.subarray(0, this.n * 48), gl.DYNAMIC_DRAW); gl.drawArrays(gl.TRIANGLES, 0, this.n * 6); this.n = 0; }
     end() { this.flush(); }
   }

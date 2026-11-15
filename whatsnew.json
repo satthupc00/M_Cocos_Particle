@@ -1,15 +1,14 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "date": "2026-11-15",
   "new": [
-    "Thu gọn / mở rộng folder trong Assets (bấm mũi tên hoặc bấm đúp)",
-    "Kéo prefab từ Assets vào Node Tree để mở",
-    "Chọn 1 file hoặc folder trong Assets rồi bấm Delete để xoá",
-    "Kéo mép giữa các bảng Node Tree, Assets, Properties để đổi kích thước (bấm đúp để về mặc định)",
-    "Tab Projectile: nút ẩn / hiện đường bay trên khung xem trước"
+    "Node Tree chứa được nhiều prefab cùng lúc: kéo prefab từ Assets vào để vẽ song song, cái nằm dưới vẽ đè lên trên",
+    "Xoá node hoặc bỏ prefab khỏi Node Tree bằng phím Delete hoặc nút ✕",
+    "Ctrl+D để nhân bản node / prefab đang chọn (dùng được cả ở Assets)",
+    "Giữ và kéo trong Node Tree để đổi thứ tự",
+    "Move, Rotate, Scale cho từng node và cả node gốc (phím W / E / T, hoặc nhập số)",
+    "Hoàn tác / làm lại 10 bước (Ctrl+Z, Ctrl+Y)"
   ],
-  "improved": [
-    "Bỏ hiệu ứng chữ và nút nhích lên khi rê chuột qua"
-  ],
+  "improved": [],
   "fixed": []
 }

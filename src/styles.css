@@ -140,3 +140,8 @@ input.num[type=number]:not(:focus){cursor:ew-resize}
 .split.v{top:0;bottom:0;width:7px;left:calc(var(--lw) - 3px);cursor:col-resize}.split.v.r{left:auto;right:calc(var(--rw) - 4px)}
 .split.h{left:0;right:var(--rw);height:7px;bottom:calc(var(--bh) - 4px);cursor:row-resize}
 .split:hover,.split.on{background:rgba(229,56,59,.55)}
+.vbar{flex-wrap:wrap}.vbar .seg{background:#1F2126cc;backdrop-filter:blur(6px)}.vbar .seg button{padding:3px 8px}
+.btn:disabled{opacity:.35;cursor:default;border-color:var(--line)}
+#treeList{position:relative}
+.dropline{position:absolute;left:6px;right:6px;height:2px;background:var(--red);border-radius:2px;pointer-events:none;display:none;z-index:3}
+.row-item{touch-action:none}
