@@ -147,3 +147,4 @@ input.num[type=number]:not(:focus){cursor:ew-resize}
 .row-item{touch-action:none}
 .sec>b.sub{margin:12px 0 6px;color:var(--warn)}.sec>b.sub:first-of-type{margin-top:4px}
 .ptab{margin-bottom:8px}.ptab button{font-weight:600}
+.vbar .btn.dim{opacity:.4;cursor:default}.vbar .btn.dim:hover{border-color:var(--line)}

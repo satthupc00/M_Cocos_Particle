@@ -296,8 +296,8 @@
   function tick(now) {
     const dt = Math.min(.05, (now - last) / 1000); last = now;
     if (playing) advance(dt);
-    R.begin(view(), BGS[S.bg || 0]); R.mat([1, 0, 0, 1], 0, 0);
-    const ra = refAsset(); if (ra) { const b = S.ref; R.batch(ra, 'SRC_ALPHA', 'ONE_MINUS_SRC_ALPHA'); R.quad(b.x, b.y, ra.w * b.scale, ra.h * b.scale, 0, [255, 255, 255, b.opacity * 2.55]); R.flush(); }
+    R.begin(view(), BGS[0]); R.mat([1, 0, 0, 1], 0, 0);
+    const ra = refAsset(); if (ra && !S.ref.hidden) { const b = S.ref; R.batch(ra, 'SRC_ALPHA', 'ONE_MINUS_SRC_ALPHA'); R.quad(b.x, b.y, ra.w * b.scale, ra.h * b.scale, 0, [255, 255, 255, b.opacity * 2.55]); R.flush(); }
     for (const pf of scenePfs()) { const r = RT.get(pf.id); if (!r) continue; drawInst(r.inst); if (r.impact) drawInst(r.impact); }
     R.end();
     drawOverlay();
@@ -316,7 +316,8 @@
   function setRef(a, locked) { S.ref = { img: a.id, x: 0, y: 0, scale: 1, opacity: 100, locked: !!locked }; dirty(); renderRef(); renderAssets(); }
   const HINT = 'Lăn chuột: zoom · Giữ chuột phải hoặc phím cách + kéo: pan · Kéo chuột trái: di chuyển / xoay / co giãn thứ đang chọn (W / E / T)';
   function renderRef() {
-    const bar = $('#refBar'), b = S.ref; bar.classList.toggle('hide', !b || b.locked); $('#btnRef').classList.toggle('on', !!b);
+    const bar = $('#refBar'), b = S.ref, bb = $('#btnBg'); bar.classList.toggle('hide', !b || b.locked || !!b.hidden);
+    bb.textContent = b && b.hidden ? 'Hiện nền' : 'Ẩn nền'; bb.classList.toggle('dim', !b); bb.title = b ? 'Ẩn / hiện ảnh nền' : 'Chưa có ảnh nền: bấm "Ảnh nền" để thêm'; $('#btnRef').classList.toggle('on', !!b);
     if (b && !b.locked) { $('#refScale').value = b.scale; $('#refOp').value = b.opacity; }
     $('#hint').textContent = drawMode ? 'Đang vẽ đường bay: giữ chuột trái và kéo trên Viewport, thả chuột để xong' : b && !b.locked ? 'Đang chỉnh ảnh nền: kéo chuột trái để di chuyển ảnh · bấm Apply để khoá' : HINT;
   }
@@ -339,7 +340,7 @@
     const r = viewEl.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, pf = cur();
     if (e.button === 1 || e.button === 2 || space) drag = { k: 'pan' };
     else if (e.button === 0 && drawMode && pf && pf.kind === 'projectile') { const [wx, wy] = s2w(mx, my); pf.proj.free = [{ x: Math.round(wx), y: Math.round(wy) }]; drag = { k: 'draw' }; }
-    else if (e.button === 0 && S.ref && !S.ref.locked) drag = { k: 'ref' };
+    else if (e.button === 0 && S.ref && !S.ref.locked && !S.ref.hidden) drag = { k: 'ref' };
     else if (e.button === 0 && pf) {
       if (pf.kind === 'projectile' && !S.hidePath) for (const hd of handles(pf.proj)) { const s = w2s(hd[1][hd[2]], hd[1][hd[3]]); if (Math.hypot(s[0] - mx, s[1] - my) < 13) drag = { k: 'pt', hd }; }
       if (!drag) { const t = selNode() || pf, c = selPos() || { x: 0, y: 0 }, s = w2s(c.x, c.y);
@@ -447,7 +448,7 @@
   function saveScene(name) {
     const f = sysFolder('Scenes'), ra = refAsset(), link = k => { const a = byId((S.scene[k] || [])[0]); return a ? pathOf(a) : null; };
     const data = { canvas: { w: S.canvas.w, h: S.canvas.h }, tab: S.tab, prefabs: { particle: link('particle'), projectile: link('projectile') }, bgColor: S.bg || 0, hidePath: !!S.hidePath,
-      bg: ra ? { path: pathOf(ra), x: S.ref.x, y: S.ref.y, scale: S.ref.scale, opacity: S.ref.opacity, locked: S.ref.locked } : null };
+      bg: ra ? { path: pathOf(ra), x: S.ref.x, y: S.ref.y, scale: S.ref.scale, opacity: S.ref.opacity, locked: S.ref.locked, hidden: !!S.ref.hidden } : null };
     let sc = f.children.find(c => c.type === 'scene' && c.name === name); const had = !!sc;
     if (sc) Object.assign(sc, data); else sc = add(f, Object.assign({ type: 'scene', name }, data));
     dirty(); renderAssets(); toast(had ? `Đã cập nhật scene "${esc(name)}"` : `Đã lưu scene "${esc(name)}" vào folder Scenes`);
@@ -455,7 +456,7 @@
   function loadScene(sc) {
     const miss = [];
     for (const k of ['particle', 'projectile']) { const path = sc.prefabs && sc.prefabs[k]; if (!path) { continue; } const a = resolve(path, 'prefab'); if (a) S.scene[k] = [a.id]; else { S.scene[k] = []; miss.push(path); } }
-    if (sc.bg) { const a = resolve(sc.bg.path, 'image'); if (a) S.ref = { img: a.id, x: sc.bg.x, y: sc.bg.y, scale: sc.bg.scale, opacity: sc.bg.opacity, locked: sc.bg.locked }; else { S.ref = null; miss.push(sc.bg.path); } } else S.ref = null;
+    if (sc.bg) { const a = resolve(sc.bg.path, 'image'); if (a) S.ref = { img: a.id, x: sc.bg.x, y: sc.bg.y, scale: sc.bg.scale, opacity: sc.bg.opacity, locked: sc.bg.locked, hidden: !!sc.bg.hidden }; else { S.ref = null; miss.push(sc.bg.path); } } else S.ref = null;
     if (sc.canvas) S.canvas = { w: sc.canvas.w, h: sc.canvas.h }; S.bg = sc.bgColor || 0; S.hidePath = !!sc.hidePath; if (sc.tab) S.tab = sc.tab;
     select(scenePfs()[0] || null); restart(); fitAll(); dirty(); renderAll();
     if (miss.length) modal(`${dlgHead('Scene thiếu file')}<div class="bd"><p>Các file sau đã bị xoá, đổi tên hoặc di chuyển nên không được nạp vào scene:</p><ul>${miss.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`);
@@ -827,7 +828,7 @@
   $('#refScale').addEventListener('input', e => { const v = parseFloat(e.target.value); if (v > 0) { S.ref.scale = v; dirty(); } });
   $('#refOp').addEventListener('input', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { S.ref.opacity = Math.max(0, Math.min(100, v)); dirty(); } });
   $('#btnPath').onclick = () => { S.hidePath = !S.hidePath; dirty(); renderPathBtn(); };
-  $('#btnBg').onclick = () => { S.bg = ((S.bg || 0) + 1) % BGS.length; dirty(); };
+  $('#btnBg').onclick = () => { if (!refAsset()) return; S.ref.hidden = !S.ref.hidden; dirty(); renderRef(); };
   const typing = e => /INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
   document.addEventListener('keydown', e => {
     if (e.code === 'Space' && !typing(e)) { space = true; e.preventDefault(); if (!e.repeat) spaceT = performance.now(); }

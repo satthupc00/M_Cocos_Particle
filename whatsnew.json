@@ -1,9 +1,11 @@
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "date": "2026-11-15",
   "new": [
-    "Xoá emitter trong Node Tree: nút ✕ trên dòng emitter hoặc phím Delete (Ctrl+Z để lấy lại)"
+    "Logo mới cho app"
   ],
-  "improved": [],
+  "improved": [
+    "Nút Nền giờ dùng để ẩn / hiện ảnh nền (không còn đổi màu nền)"
+  ],
   "fixed": []
 }
