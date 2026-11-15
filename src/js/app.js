@@ -12,6 +12,7 @@
     root: '<svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>',
     anim: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>',
     proj: '<svg viewBox="0 0 24 24"><path d="M3 20C8 6 14 4 21 6"/><circle cx="21" cy="6" r="2"/></svg>',
+    caret: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
     x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     eye: '<svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
@@ -203,7 +204,7 @@
     g.strokeStyle = 'rgba(229,56,59,.9)'; g.lineWidth = 1.5; g.strokeRect(ox - cw / 2, oy - ch / 2, cw, ch);
     g.fillStyle = '#8D929C'; g.font = '11px "Segoe UI",sans-serif'; g.fillText(`Canvas ${S.canvas.w} × ${S.canvas.h}`, ox - cw / 2 + 4, oy - ch / 2 - 6);
     const pf = cur(); if (!pf) return;
-    if (pf.kind === 'projectile') {
+    if (pf.kind === 'projectile' && !S.hidePath) {
       const pj = pf.proj, col = M.sim.PRESETS[pj.preset].color; g.setLineDash([5, 5]); g.lineWidth = 1.5; g.strokeStyle = col; g.globalAlpha = .7;
       for (let i = 0; i < Math.max(1, pj.variants); i++) { const vr = M.sim.variant(pj, i); g.beginPath(); for (let k = 0; k <= 60; k++) { const p = M.sim.pathPoint(pj, vr, k / 60), s = w2s(p.x, p.y); k ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1]); } g.stroke(); }
       g.setLineDash([]); g.globalAlpha = 1;
@@ -258,7 +259,7 @@
     if (e.button === 1 || e.button === 2 || space) drag = { k: 'pan' };
     else if (e.button === 0 && S.ref && !S.ref.locked) drag = { k: 'ref' };
     else if (e.button === 0 && pf) {
-      if (pf.kind === 'projectile') for (const [k, x, y] of [['s', pf.proj.sx, pf.proj.sy], ['e', pf.proj.ex, pf.proj.ey]]) { const s = w2s(x, y); if (Math.hypot(s[0] - mx, s[1] - my) < 13) drag = { k: 'pt', p: k }; }
+      if (pf.kind === 'projectile' && !S.hidePath) for (const [k, x, y] of [['s', pf.proj.sx, pf.proj.sy], ['e', pf.proj.ex, pf.proj.ey]]) { const s = w2s(x, y); if (Math.hypot(s[0] - mx, s[1] - my) < 13) drag = { k: 'pt', p: k }; }
       if (!drag && selNode()) drag = { k: 'node' };
     }
     if (drag) { drag.x = e.clientX; drag.y = e.clientY; viewEl.setPointerCapture(e.pointerId); viewEl.style.cursor = drag.k === 'pan' ? 'grabbing' : 'move'; e.preventDefault(); }
@@ -354,7 +355,11 @@
   // ================= render: assets =================
   function renderAssets() {
     idx = null; let f = byId(S.folder); if (!f || f.type !== 'folder') { f = S.root; S.folder = 'root'; }
-    const rows = []; (function rec(x, d) { rows.push(`<div class="row-item ${x.id === S.folder ? 'sel' : ''}" style="padding-left:${10 + d * 16}px" data-fid="${x.id}" data-drop="folder:${x.id}">${IC.folder}<span>${esc(x.name)}</span></div>`); x.children.filter(c => c.type === 'folder').forEach(c => rec(c, d + 1)); })(S.root, 0);
+    const rows = [], col = S.collapsed || (S.collapsed = {});
+    for (let p = parentOf(f.id); p; p = parentOf(p.id)) delete col[p.id];      // luôn mở các folder cha của folder đang chọn
+    (function rec(x, d) { const subs = x.children.filter(c => c.type === 'folder'), shut = !!col[x.id];
+      rows.push(`<div class="row-item ${x.id === S.folder ? 'sel' : ''}" style="padding-left:${6 + d * 16}px" data-fid="${x.id}" data-drop="folder:${x.id}"><i class="caret ${shut ? '' : 'open'} ${subs.length ? '' : 'none'}" data-caret title="${shut ? 'Mở rộng' : 'Thu gọn'}">${IC.caret}</i>${IC.folder}<span>${esc(x.name)}</span></div>`);
+      if (!shut) subs.forEach(c => rec(c, d + 1)); })(S.root, 0);
     $('#ftree').innerHTML = rows.join('');
     $('#curFolder').textContent = f === S.root ? '' : '/ ' + f.name;
     const order = { folder: 0, prefab: 1, anim: 2, image: 3 };
@@ -365,19 +370,22 @@
       else if (a.type === 'anim') { const fr = byId(a.frames[0]); if (fr) st = fr.data; else ic = `<i class="an">${IC.anim}</i>`; }
       else ic = a.kind === 'particle' ? `<i class="pf">${IC.spark}</i>` : `<i class="pj">${IC.proj}</i>`;
       const tip = { folder: 'Folder', image: `Ảnh ${a.w}×${a.h}`, anim: `Animation clip · ${a.frames ? a.frames.length : 0} hình`, prefab: a.kind === 'particle' ? 'Particle prefab — bấm đúp để mở' : 'Projectile prefab — bấm đúp để mở' }[a.type];
-      return `<div class="thumb ${S.open[S.tab] === a.id ? 'sel' : ''}" data-aid="${a.id}" title="${esc(a.name)} · ${tip}"${a.type === 'folder' ? ` data-drop="folder:${a.id}"` : ''}>${ic || `<i style="background-image:url(${st})"></i>`}${esc(a.name)}</div>`;
+      return `<div class="thumb ${S.open[S.tab] === a.id ? 'sel' : ''} ${S.selAsset === a.id ? 'pick' : ''}" data-aid="${a.id}" title="${esc(a.name)} · ${tip}"${a.type === 'folder' ? ` data-drop="folder:${a.id}"` : ''}>${ic || `<i style="background-image:url(${st})"></i>`}${esc(a.name)}</div>`;
     }).join('') || '<div class="note" style="padding:8px">Folder trống. Bấm chuột phải để tạo prefab hoặc import ảnh, hoặc kéo ảnh từ ngoài vào đây.</div>';
   }
-  $('#ftree').addEventListener('click', e => { const r = e.target.closest('[data-fid]'); if (r) { S.folder = r.dataset.fid; renderAssets(); } });
+  $('#ftree').addEventListener('click', e => { const r = e.target.closest('[data-fid]'); if (!r) return; area = 'ftree';
+    if (e.target.closest('[data-caret]')) { const c = S.collapsed || (S.collapsed = {}), id = r.dataset.fid; if (c[id]) delete c[id]; else { c[id] = 1; let inside = false; walk(x => { if (x.id === S.folder && x.id !== id) inside = true; }, byId(id)); if (inside) S.folder = id; } dirty(); return renderAssets(); }
+    S.folder = r.dataset.fid; S.selAsset = null; renderAssets(); });
+  $('#ftree').addEventListener('dblclick', e => { const r = e.target.closest('[data-fid]'); if (!r || e.target.closest('[data-caret]')) return; const c = S.collapsed || (S.collapsed = {}), id = r.dataset.fid; if (c[id]) delete c[id]; else c[id] = 1; dirty(); renderAssets(); });
   $('#ftree').addEventListener('contextmenu', e => { e.preventDefault(); const r = e.target.closest('[data-fid]'); if (r) { S.folder = r.dataset.fid; renderAssets(); folderMenu(byId(r.dataset.fid), e.clientX, e.clientY); } });
   $('#gridWrap').addEventListener('contextmenu', e => { e.preventDefault(); const t = e.target.closest('[data-aid]'), a = t && byId(t.dataset.aid); if (a && a.type !== 'folder') fileMenu(a, e.clientX, e.clientY); else folderMenu(a || byId(S.folder), e.clientX, e.clientY); });
   $('#gridWrap').addEventListener('dblclick', e => { const t = e.target.closest('[data-aid]'), a = t && byId(t.dataset.aid); if (!a) return; if (a.type === 'folder') { S.folder = a.id; renderAssets(); } else if (a.type === 'prefab') openPrefab(a); });
   $('#btnAddAsset').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); folderMenu(byId(S.folder) || S.root, r.left - 180, r.bottom + 4); };
 
   // kéo asset (pointer events, có ghost)
-  let ad = null;
-  $('#grid').addEventListener('pointerdown', e => { const t = e.target.closest('[data-aid]'); if (!t || e.button !== 0) return; ad = { a: byId(t.dataset.aid), x: e.clientX, y: e.clientY, g: null, on: null }; });
-  const accepts = (drop, a) => { const k = drop.split(':')[0]; return k === 'view' ? a.type === 'prefab' : k === 'folder' ? true : k === 'img' ? a.type === 'image' : k === 'seq' ? a.type === 'anim' : k === 'sanim' ? a.type === 'image' || a.type === 'anim' : k === 'impact' ? a.type === 'prefab' && a.kind === 'particle' : false; };
+  let ad = null, area = 'tree';
+  $('#grid').addEventListener('pointerdown', e => { const t = e.target.closest('[data-aid]'); area = 'assets'; if (!t) { if (S.selAsset) { S.selAsset = null; renderAssets(); } return; } if (S.selAsset !== t.dataset.aid) { S.selAsset = t.dataset.aid; $$('#grid .thumb').forEach(x => x.classList.toggle('pick', x.dataset.aid === S.selAsset)); } if (e.button !== 0) return; ad = { a: byId(t.dataset.aid), x: e.clientX, y: e.clientY, g: null, on: null }; });
+  const accepts = (drop, a) => { const k = drop.split(':')[0]; return k === 'view' || k === 'tree' ? a.type === 'prefab' : k === 'folder' ? true : k === 'img' ? a.type === 'image' : k === 'seq' ? a.type === 'anim' : k === 'sanim' ? a.type === 'image' || a.type === 'anim' : k === 'impact' ? a.type === 'prefab' && a.kind === 'particle' : false; };
   document.addEventListener('pointermove', e => {
     if (!ad) return;
     if (!ad.g) { if (Math.hypot(e.clientX - ad.x, e.clientY - ad.y) < 5) return; ad.g = document.createElement('div'); ad.g.className = 'ghost'; ad.g.textContent = ad.a.name; document.body.append(ad.g); document.body.style.cursor = 'grabbing'; }
@@ -393,7 +401,7 @@
   const whiten = n => { if (n.type !== 'emitter' || !isBuiltin(n)) return; for (const k of ['startColor', 'endColor']) Object.assign(n.ps[k], { r: 255, g: 255, b: 255 }); };
   function dropAsset(drop, a) {
     const [k, id] = drop.split(':'), pf = cur(), n = selNode();
-    if (k === 'view') return openPrefab(a);
+    if (k === 'view' || k === 'tree') return openPrefab(a);
     if (k === 'folder') return moveAsset(a, byId(id));
     if (k === 'img' && n) { if (!a.builtin) whiten(n); n.image = a.id; }
     if (k === 'seq' && pf) { emitters(pf).forEach(whiten); pf.seqAnim = a.id; }
@@ -435,6 +443,7 @@
     if (b) { if (b.dataset.act === 'del') return delNode(r.dataset.nid); const n = pf.nodes.find(n => n.id === r.dataset.nid); n.hidden = !n.hidden; dirty(); return renderTree(); }
     S.sel = r.dataset.nid || null; renderTree(); renderProps();
   });
+  $('#treeList').addEventListener('pointerdown', () => area = 'tree'); viewEl.addEventListener('pointerdown', () => area = 'tree');
   $('#treeList').addEventListener('dblclick', async e => {
     const r = e.target.closest('[data-nid]'); if (!r || e.target.closest('[data-act]')) return; const pf = cur();
     if (!r.dataset.nid) return renameAsset(pf);
@@ -549,6 +558,19 @@
   const endScrub = () => { if (!scrub) return; const s = scrub; scrub = null; document.body.classList.remove('scrubbing'); if (!s.on) { s.i.focus(); s.i.select(); } };
   document.addEventListener('pointerup', endScrub, true); document.addEventListener('pointercancel', endScrub, true);
 
+  // ================= kéo đổi kích thước các bảng =================
+  const bodyEl = $('.body'), LIM = { lw: [150, 520], rw: [240, 640], bh: [90, 600] };
+  function applyLayout() { const L = S.layout || (S.layout = { lw: 230, rw: 340, bh: 210 }); for (const k in LIM) bodyEl.style.setProperty('--' + k, L[k] + 'px'); }
+  let rs = null;
+  bodyEl.addEventListener('pointerdown', e => { const sp = e.target.closest('.split'); if (!sp) return; rs = { k: sp.dataset.k, x: e.clientX, y: e.clientY, v: S.layout[sp.dataset.k], sp }; sp.classList.add('on'); sp.setPointerCapture(e.pointerId); e.preventDefault(); });
+  bodyEl.addEventListener('pointermove', e => { if (!rs) return; const r = bodyEl.getBoundingClientRect(), L = S.layout;
+    let v = rs.k === 'lw' ? rs.v + e.clientX - rs.x : rs.k === 'rw' ? rs.v - (e.clientX - rs.x) : rs.v - (e.clientY - rs.y);
+    const max = rs.k === 'bh' ? r.height - 140 : r.width - (rs.k === 'lw' ? L.rw : L.lw) - 260;
+    L[rs.k] = Math.round(Math.max(LIM[rs.k][0], Math.min(LIM[rs.k][1], max, v))); applyLayout(); });
+  const endRs = () => { if (!rs) return; rs.sp.classList.remove('on'); rs = null; dirty(); renderTabs(); };
+  bodyEl.addEventListener('pointerup', endRs); bodyEl.addEventListener('pointercancel', endRs);
+  bodyEl.addEventListener('dblclick', e => { const sp = e.target.closest('.split'); if (!sp) return; S.layout[sp.dataset.k] = { lw: 230, rw: 340, bh: 210 }[sp.dataset.k]; applyLayout(); dirty(); });
+
   // ================= header =================
   function renderTabs() { $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === S.tab)); const b = $('.tab.on'), bar = $('#tabbar'); bar.style.left = b.offsetLeft + 'px'; bar.style.width = b.offsetWidth + 'px'; }
   $('#tabs').addEventListener('click', e => { const t = e.target.dataset.t; if (!t || t === S.tab) return; S.tab = t; S.sel = null; restart(); renderAll(); dirty(); });
@@ -561,6 +583,7 @@
   $('#refDel').onclick = () => { S.ref = null; dirty(); renderRef(); };
   $('#refScale').addEventListener('input', e => { const v = parseFloat(e.target.value); if (v > 0) { S.ref.scale = v; dirty(); } });
   $('#refOp').addEventListener('input', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { S.ref.opacity = Math.max(0, Math.min(100, v)); dirty(); } });
+  $('#btnPath').onclick = () => { S.hidePath = !S.hidePath; dirty(); renderPathBtn(); };
   $('#btnBg').onclick = () => { S.bg = ((S.bg || 0) + 1) % BGS.length; dirty(); };
   const typing = e => /INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
   document.addEventListener('keydown', e => {
@@ -568,7 +591,11 @@
     if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); return exportDlg(); }
     if (typing(e) || $('.modal') || e.ctrlKey || e.altKey) return;
     if (e.key.toLowerCase() === 'r') $('#btnRestart').click(); if (e.key.toLowerCase() === 'f') fit();
-    if (e.key === 'Delete' && S.sel) delNode(S.sel);
+    if (e.key === 'Delete') {
+      const a = area === 'assets' ? byId(S.selAsset) : area === 'ftree' ? byId(S.folder) : null;
+      if (a && a !== S.root) confirmDlg('Xoá', `Xoá "${esc(a.name)}"${a.type === 'folder' ? ' và mọi thứ bên trong' : ''}?`).then(ok => { if (ok) { S.selAsset = null; removeAsset(a); } });
+      else if (area === 'tree' && S.sel) delNode(S.sel);
+    }
   });
   let spaceT = 0;
   document.addEventListener('keyup', e => { if (e.code === 'Space') { space = false; if (!typing(e) && !$('.modal') && performance.now() - spaceT < 250 && !drag) $('#btnPlay').click(); } });
@@ -618,7 +645,8 @@
       m.querySelector('#sReset').onclick = async () => { close(); if (await confirmDlg('Tạo lại project mẫu', 'Xoá toàn bộ assets hiện tại và tạo lại project mẫu ban đầu?', 'Tạo lại')) { await bootstrap(); restart(); fitAll(); renderAll(); dirty(); } }; });
 
   // ================= khởi động =================
-  function renderAll() { renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
+  function renderPathBtn() { const b = $('#btnPath'); b.classList.toggle('hide', S.tab !== 'projectile'); b.classList.toggle('on', !S.hidePath); b.textContent = S.hidePath ? 'Hiện đường bay' : 'Ẩn đường bay'; }
+  function renderAll() { applyLayout(); renderPathBtn(); renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
   function fitAll() { const t = S.tab; for (const k of ['particle', 'projectile']) { S.tab = k; fit(); } S.tab = t; }
   async function init() {
     if (api) document.documentElement.classList.add('electron');

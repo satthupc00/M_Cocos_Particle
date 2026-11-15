@@ -25,7 +25,7 @@
 <div class="body">
   <section class="pane tree">
     <h3>Node Tree <span class="sp"><button class="mini" id="btnAddNode" title="Thêm emitter" aria-label="Thêm emitter"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></span></h3>
-    <div class="scroll" id="treeList"></div>
+    <div class="scroll" id="treeList" data-drop="tree"></div>
   </section>
 
   <section class="view" id="view" data-drop="view">
@@ -35,6 +35,7 @@
       <button class="btn" id="btnRestart" title="Chạy lại từ đầu (R)">Chạy lại</button>
       <button class="btn" id="btnFit" title="Vừa khung (F)">Fit</button>
       <button class="btn" id="btnBg" title="Đổi màu nền viewport">Nền</button>
+      <button class="btn hide" id="btnPath" title="Ẩn / hiện đường bay và điểm A, B trên khung xem trước">Ẩn đường bay</button>
       <button class="btn" id="btnRef" title="Đặt 1 ảnh làm nền để ướm thử (không xuất vào Cocos)">Ảnh nền</button>
       <span class="zoom" id="zoom">100%</span>
     </div>
@@ -55,6 +56,7 @@
     <h3>Properties <span class="nm" id="selName"></span></h3>
     <div class="scroll" id="props"></div>
   </section>
+  <div class="split v" data-k="lw" title="Kéo để đổi độ rộng · bấm đúp để về mặc định"></div><div class="split v r" data-k="rw" title="Kéo để đổi độ rộng · bấm đúp để về mặc định"></div><div class="split h" data-k="bh" title="Kéo để đổi chiều cao · bấm đúp để về mặc định"></div>
 </div>
 
 <footer class="foot"><span id="st"></span><span id="st2"></span><span class="credit">Created by Mondiro</span></footer>

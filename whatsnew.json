@@ -1,13 +1,15 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "date": "2026-11-15",
   "new": [
-    "Giữ chuột và kéo ngang trên ô số để tăng giảm nhanh (giữ Shift để chỉnh chậm)",
-    "Thêm Scale để chỉnh kích thước Head của Projectile",
-    "Đặt 1 ảnh làm nền để ướm thử: kéo để di chuyển, chỉnh tỉ lệ và độ rõ, bấm Apply để khoá"
+    "Thu gọn / mở rộng folder trong Assets (bấm mũi tên hoặc bấm đúp)",
+    "Kéo prefab từ Assets vào Node Tree để mở",
+    "Chọn 1 file hoặc folder trong Assets rồi bấm Delete để xoá",
+    "Kéo mép giữa các bảng Node Tree, Assets, Properties để đổi kích thước (bấm đúp để về mặc định)",
+    "Tab Projectile: nút ẩn / hiện đường bay trên khung xem trước"
   ],
-  "improved": [],
-  "fixed": [
-    "Chuỗi hình bị phồng to ở các hình cạnh nghiêng (trong app và trong file xuất)"
-  ]
+  "improved": [
+    "Bỏ hiệu ứng chữ và nút nhích lên khi rê chuột qua"
+  ],
+  "fixed": []
 }
