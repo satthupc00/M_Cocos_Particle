@@ -1,10 +1,12 @@
 {
-  "version": "1.8.0",
+  "version": "1.9.0",
   "date": "2026-11-16",
   "new": [
-    "Projectile: thêm mode \"Đứng yên tại chỗ\" để canh lại vị trí Head và Trail",
-    "Bấm vào ô FX bung ra: nhảy tới file đó trong Assets, hoặc mở bảng chọn nhanh particle nếu chưa gán"
+    "Head của Projectile có 2 tab M particle và CC giống emitter",
+    "Head: chọn xoay / không xoay theo đường bay, và kiểu hoà màu Normal / Additive"
   ],
-  "improved": [],
+  "improved": [
+    "Góc lệch của Head giờ là ô Góc xoay ngay trong mục Head"
+  ],
   "fixed": []
 }

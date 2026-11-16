@@ -107,12 +107,18 @@
     pf.nodes.push({ id: uid(), type: 'emitter', name: 'Emitter_1', x: 0, y: 0, image: img.id, ps: defPS(opt.ps) });
     applyPlay(pf); return pf;
   }
-  const defProj = impact => ({ preset: 'arc2', sx: -300, sy: -200, ex: 300, ey: 120, dur: .8, amp: 220, rand: 60, variants: 3, ease: 'linear', rotateDir: true, rotOffset: 0, impact: impact || null });
+  const defProj = impact => ({ preset: 'arc2', sx: -300, sy: -200, ex: 300, ey: 120, dur: .8, amp: 220, rand: 60, variants: 3, ease: 'linear', impact: impact || null });
   function normProj(pj) {
     if (!M.sim.PRESETS[pj.preset]) pj.preset = 'arc2';
     if (typeof pj.cx !== 'number') { pj.cx = Math.round((pj.sx + pj.ex) / 2); pj.cy = Math.round(Math.max(pj.sy, pj.ey) + 150); }
     if (!Array.isArray(pj.circle) || pj.circle.length !== 4) pj.circle = [{ x: -180, y: 0 }, { x: 0, y: 180 }, { x: 180, y: 0 }, { x: 0, y: -180 }];
     if (!Array.isArray(pj.free)) pj.free = [];
+  }
+  // bản cũ lưu "xoay theo hướng" + "góc lệch" ở prefab: chuyển sang từng Head (góc lệch thành Rotation của Head)
+  function normHead(pf) {
+    const pj = pf.proj, old = typeof pj.rotateDir === 'boolean';
+    pf.nodes.forEach(n => { if (n.type !== 'sprite') return; if (typeof n.follow !== 'boolean') n.follow = old ? pj.rotateDir : true; if (old && pj.rotOffset) n.rot = (n.rot || 0) - pj.rotOffset; });
+    delete pj.rotateDir; delete pj.rotOffset;
   }
   async function newProjectile(project, name) {
     const glow = await builtinImg(project, 'Glow');
@@ -167,7 +173,7 @@
   let saveT;
   // mọi prefab / node đều có vị trí, góc xoay, tỉ lệ
   const xf = o => { if (typeof o.x !== 'number') o.x = 0; if (typeof o.y !== 'number') o.y = 0; if (typeof o.rot !== 'number') o.rot = 0; if (!(o.sx > 0)) o.sx = o.scale > 0 ? o.scale : 1; if (!(o.sy > 0)) o.sy = o.scale > 0 ? o.scale : 1; delete o.scale; };
-  function normAll() { walk(a => { if (a.type === 'image') a.trim = { x: 0, y: 0, w: a.w, h: a.h }; if (a.type === 'prefab') { xf(a); a.nodes.forEach(xf); if (a.kind === 'projectile') normProj(a.proj || (a.proj = defProj())); } });
+  function normAll() { walk(a => { if (a.type === 'image') a.trim = { x: 0, y: 0, w: a.w, h: a.h }; if (a.type === 'prefab') { xf(a); a.nodes.forEach(xf); if (a.kind === 'projectile') { normProj(a.proj || (a.proj = defProj())); normHead(a); } } });
     if (S.ref && !S.ref.data && !byId(S.ref.img)) S.ref = null;
     if (!S.scene) S.scene = { particle: S.open && S.open.particle ? [S.open.particle] : [], projectile: S.open && S.open.projectile ? [S.open.projectile] : [] };
     for (const k of ['particle', 'projectile']) S.scene[k] = (S.scene[k] || []).filter(id => { const a = byId(id); return a && a.type === 'prefab'; });
@@ -216,11 +222,11 @@
       return;
     }
     const pj = pf.proj, fly = r.fly;
-    if (pj.preset === 'still') { inst.headVisible = true; inst.headRot = pj.rotOffset; inst.step(dt, 0, 0); return; }
+    if (pj.preset === 'still') { inst.headVisible = true; inst.headRot = 0; inst.step(dt, 0, 0); return; }
     if (fly.phase === 'fly') {
       fly.t += dt; const u = Math.min(1, fly.t / Math.max(.05, pj.dur)), p = M.sim.pathPoint(pj, fly.v, M.sim.EASE[pj.ease](u));
       const dx = p.x - inst.x, dy = p.y - inst.y;
-      if (pj.rotateDir && (dx || dy)) inst.headRot = -Math.atan2(dy, dx) * 180 / Math.PI + pj.rotOffset; else if (!pj.rotateDir) inst.headRot = pj.rotOffset;
+      if (dx || dy) inst.headRot = -Math.atan2(dy, dx) * 180 / Math.PI;
       inst.step(dt, p.x, p.y);
       if (u >= 1) { fly.phase = 'impact'; inst.stopAll(); inst.headVisible = false; const ip = byId(pj.impact); if (ip) { r.impact = new M.sim.Instance(ip); r.impact.x = p.x; r.impact.y = p.y; } }
     } else {
@@ -252,7 +258,7 @@
         for (const p of e.parts) R.quad(p.x - (free ? W.x - p.sx : 0), p.y - (free ? W.y - p.sy : 0), p.size * kw, p.size * kh, p.rot, p.c);
       } else if (I.headVisible) {
         const an = byId(n.anim); if (an) a = frameOf(an, 0, 1, I.time) || a; if (!a) continue;
-        R.batch(a, n.srcBlend, n.dstBlend); R.quad(0, 0, a.w, a.h, I.headRot, [255, 255, 255, 255]);
+        R.batch(a, n.srcBlend, n.dstBlend); R.quad(0, 0, a.w, a.h, n.follow === false ? 0 : I.headRot, [255, 255, 255, 255]);
       }
     }
     R.mat([1, 0, 0, 1], 0, 0);
@@ -652,7 +658,7 @@
       pf.nodes.splice(src ? pf.nodes.indexOf(src) + 1 : 0, 0, n); if (!src && pf.kind === 'particle') applyMode(pf, [n]); select(pf, n); dirty(); renderAll(); };
     if (pf.kind === 'particle') return addEm();
     const r = e.currentTarget.getBoundingClientRect();
-    ctxMenu(r.left - 150, r.bottom + 4, [['Thêm emitter (đuôi / trail)', addEm], ['Thêm Head (sprite)', async () => { const n = { id: uid(), type: 'sprite', name: nodeName(pf, 'Head'), x: 0, y: 0, image: (await builtinImg(projectOf(pf), 'Glow')).id, anim: null, srcBlend: 'SRC_ALPHA', dstBlend: 'ONE' }; pf.nodes.push(n); select(pf, n); dirty(); renderAll(); }]]);
+    ctxMenu(r.left - 150, r.bottom + 4, [['Thêm emitter (đuôi / trail)', addEm], ['Thêm Head (sprite)', async () => { const n = { id: uid(), type: 'sprite', name: nodeName(pf, 'Head'), x: 0, y: 0, follow: true, image: (await builtinImg(projectOf(pf), 'Glow')).id, anim: null, srcBlend: 'SRC_ALPHA', dstBlend: 'ONE' }; pf.nodes.push(n); select(pf, n); dirty(); renderAll(); }]]);
   };
 
   // ================= render: properties =================
@@ -705,6 +711,13 @@
         : '<div class="note">Emitter này đang ở chế độ RADIUS (bay vòng tròn). Chỉnh ở tab CC.</div>'}
       <b class="sub">Vị trí</b>${row('Vị trí', num('node', 'x', 'X'), num('node', 'y', 'Y'), 'Vị trí của emitter')}${row('Độ lệch vị trí', mi('pvx', 'Ngang ±'), mi('pvy', 'Dọc ±'), 'Hạt sinh ra ngẫu nhiên trong vùng ± này quanh emitter')}${mS('Hạt đi theo emitter', 'follow', [['0', 'Không (hạt ở lại chỗ sinh ra)'], ['2', 'Có (đi theo emitter)'], ['1', 'Theo node cha']], 'Khi emitter di chuyển, hạt đã sinh có đi theo không')}`;
   }
+  function headProps(n) {
+    const bl = MS.blend.g(n), opt = (k, opts, label, tip) => `<div class="f"><label title="${tip}">${label}</label><select class="num w2" data-ms="${k}">${opts.map(([v, t]) => `<option value="${v}" ${MS[k].g(n) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`;
+    return `<div class="note" style="margin:0 0 8px">Mọi thay đổi ở đây tự cập nhật sang tab CC.</div>
+      <b class="sub">Xoay</b><div class="f"><label title="Head tự quay đầu theo hướng đang bay khi xem trước">Xoay theo đường bay</label>${seg('node', 'follow', [[true, 'Có'], [false, 'Không']])}</div>${row('Góc xoay', num('node', 'rot', 'Góc xoay thêm của Head (độ, ngược chiều kim đồng hồ)'), '<small>độ</small>', 'Xoay thêm cho Head. Nếu ảnh Head vẽ hướng lên trên, đặt -90 để mũi quay theo hướng bay')}
+      <b class="sub">Màu</b>${opt('blend', [['normal', 'Normal (hình đặc)'], ['add', 'Additive (phát sáng)']].concat(bl === 'custom' ? [['custom', 'Tuỳ chỉnh (xem tab CC)']] : []), 'Kiểu hoà màu', 'Normal: hình đặc như ảnh gốc. Additive: cộng sáng, hợp với đầu đạn phát sáng')}
+      <b class="sub">Vị trí và kích thước</b>${row('Vị trí', num('node', 'x', 'X'), num('node', 'y', 'Y'), 'Vị trí của Head so với tâm prefab')}${row('Kích thước', num('node', 'sx', 'Ngang (1 = 100%)'), num('node', 'sy', 'Dọc (1 = 100%)'), 'Phóng to / thu nhỏ Head: 1 = đúng kích thước ảnh')}`;
+  }
   function projProps(pj) {
     const pt = (label, o, kx, ky) => row(label, num(o, kx, 'X'), num(o, ky, 'Y'));
     let pts = ''; const still = pj.preset === 'still';
@@ -717,7 +730,7 @@
         <div class="note">Kéo các điểm tròn trên Viewport để chỉnh. Đường bay chỉ để xem trước, khi xuất prefab nằm tại (0,0).</div></div>
       <div class="sec"><b>Đường bay (xem trước)</b>${pts}
         ${still ? '' : row('Thời gian bay', num('proj', 'dur'), '<small>giây</small>') + row('Độ random', num('proj', 'rand'), '<small>px</small>') + row('Số biến thể', num('proj', 'variants'), '<small>đường cùng màu</small>')
-          + fSel('Tốc độ', 'proj', 'ease', [['linear', 'Đều'], ['in', 'Nhanh dần'], ['out', 'Chậm dần'], ['inout', 'Chậm – nhanh – chậm']]) + `<div class="f"><label>Xoay theo hướng</label>${seg('proj', 'rotateDir', [[true, 'Có'], [false, 'Không']])}</div>`}${row('Góc lệch', num('proj', 'rotOffset'), '<small>độ</small>', 'Xoay thêm cho Head')}</div>`;
+          + fSel('Tốc độ', 'proj', 'ease', [['linear', 'Đều'], ['in', 'Nhanh dần'], ['out', 'Chậm dần'], ['inout', 'Chậm – nhanh – chậm']])}</div>`;
   }
   function emitterProps(n, seqOn) {
     const s = n.ps, g = s.emitterMode === 0, pf = cur(), an = seqOn && byId(pf.seqAnim), ems = emitters(pf), nf = an ? an.frames.map(byId).filter(Boolean).length : 0;
@@ -757,7 +770,10 @@
       h += `<div class="sec"><b>Head (đầu đạn)</b>${slot('sanim', an || byId(n.image), 'Sprite Frame', an ? `Chuỗi ${an.frames.length} hình · Animation clip` : 'Kéo ảnh hoặc Animation clip vào đây', an ? 'sanim' : '')}
         <div class="f" style="margin-top:8px"><label>Import</label><button class="btn w2" data-dir="sanim" title="Chọn folder chứa chuỗi PNG cho Head">Import folder chuỗi hình…</button></div>
         ${an ? row('Tốc độ (fps)', num(an.id, 'sample'), `<small>${an.frames.length} hình</small>`) : ''}</div>
-      ${nodeSec('node', 'Node')}<div class="sec"><b>Blend</b>${fSel('Src Blend Factor', 'node', 'srcBlend', BL)}${fSel('Dst Blend Factor', 'node', 'dstBlend', BL)}</div>`;
+      <div class="sec">${ptabs()}${S.ptab === 'cc' ? `<div class="note" style="margin:0 0 8px">Thông số gốc của Cocos (cc.Node và cc.Sprite).</div>
+        ${row('Position', num('node', 'x', 'X'), num('node', 'y', 'Y'))}${row('Rotation', num('node', 'rot', 'Góc xoay (độ, ngược chiều kim đồng hồ)'), '<small>độ</small>')}${row('Scale', num('node', 'sx', 'Scale X'), num('node', 'sy', 'Scale Y'))}
+        ${fSel('Src Blend Factor', 'node', 'srcBlend', BL)}${fSel('Dst Blend Factor', 'node', 'dstBlend', BL)}
+        <div class="note">"Xoay theo đường bay" chỉ có ở tab M particle vì đây là cách xem trước của app, không phải thông số của Cocos.</div>` : headProps(n)}</div>`;
     } else h += emitterProps(n, false);
     P.innerHTML = h;
   }
@@ -785,7 +801,7 @@
     const i = e.target, sn = selNode();
     if (i.dataset.seqoff !== undefined && sn) { const v = parseInt(i.value); if (isNaN(v)) return; sn.seqOff = v; const bt = $('[data-seqauto]'), nt = $('#seqNote'); if (bt) bt.textContent = 'Về tự động'; if (nt) nt.textContent = 'Emitter này đang dùng số bạn đặt.'; return dirty(); }
     if (i.dataset.m && sn) { const v = parseFloat(i.value); if (isNaN(v)) return; MF[i.dataset.m].s(sn.ps, v); syncInputs(); return dirty(); }
-    if (i.dataset.ms && sn) { MS[i.dataset.ms].s(sn.ps, i.value); return dirty(); }
+    if (i.dataset.ms && sn) { MS[i.dataset.ms].s(sn.ps || sn, i.value); return dirty(); }
     if (!i.dataset.k) return; const t = target(i.dataset.o); if (!t) return;
     if (i.dataset.col !== undefined) { const c = gp(t, i.dataset.k), v = parseInt(i.value.slice(1), 16); c.r = v >> 16; c.g = v >> 8 & 255; c.b = v & 255; }
     else if (i.tagName === 'SELECT') { let v = i.value; if (i.dataset.n !== undefined) v = +v; else if (v === 'true' || v === 'false') v = v === 'true'; sp(t, i.dataset.k, v); if (/emitterMode$/.test(i.dataset.k)) renderProps(); }
