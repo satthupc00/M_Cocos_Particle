@@ -107,6 +107,7 @@
     arc2:   { name: 'Vòng cung 2 điểm', color: '#3DDC8A', icon: 'M8 40 Q40 -10 72 40' },
     arc3:   { name: 'Vòng cung 3 điểm', color: '#3D9BFF', icon: 'M8 38 Q22 -14 72 30' },
     circle: { name: 'Vòng tròn', color: '#F2B84B', icon: 'M40 5a18 18 0 1 0 .1 0' },
+    still:  { name: 'Đứng yên tại chỗ', color: '#8D929C', icon: 'M40 13a10 10 0 1 0 .1 0M40 3v6M40 37v6M20 23h6M54 23h6' },
     free:   { name: 'Vẽ tự do', color: '#E5383B', icon: 'M6 30c10-22 18 12 28-6s14-14 20 0 10 10 20-10' },
   };
   function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }

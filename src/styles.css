@@ -191,3 +191,12 @@ input.num[type=number]:not(:focus){cursor:ew-resize}
 .tbtn{background:none;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;white-space:nowrap;font-size:12px;flex:0 0 auto}
 .tbtn:hover{border-color:var(--red)}.tbtn.danger{color:#FF6B7A}
 .admin-list::-webkit-scrollbar{width:9px}.admin-list::-webkit-scrollbar-thumb{background:#474C55;border-radius:5px}
+.thumb.flash{animation:flash 1.1s var(--ease-out)}
+@keyframes flash{0%,40%{background:rgba(229,56,59,.45);box-shadow:0 0 0 3px rgba(229,56,59,.5)}100%{box-shadow:0 0 0 0 rgba(229,56,59,0)}}
+.ctx.picker{padding:8px;width:300px;max-height:320px;overflow:auto}
+.ctx.picker p{margin:0 0 8px;color:var(--muted);font-size:11.5px}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pgrid button{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+.pgrid button:hover{border-color:var(--red);background:var(--selected-bg)}
+.pgrid i{width:30px;height:30px;border-radius:5px;background:#17191d;display:grid;place-items:center;color:#5AA9FF}.pgrid i svg{width:18px;height:18px}
+.pgrid span,.pgrid small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}.pgrid small{color:var(--muted);font-size:9.5px}

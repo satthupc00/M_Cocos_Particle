@@ -201,7 +201,7 @@
   function startFly(pf, r) {
     const pj = pf.proj; r.inst.reset(); r.impact = null;
     const v = M.sim.variant(pj, Math.floor(Math.random() * Math.max(1, pj.variants)));
-    r.fly = { t: 0, v, phase: 'fly', it: 0 }; const p0 = M.sim.pathPoint(pj, v, 0); r.inst.x = p0.x; r.inst.y = p0.y; r.inst.headVisible = true; r.inst.headRot = 0;
+    r.fly = { t: 0, v, phase: 'fly', it: 0 }; const p0 = pj.preset === 'still' ? { x: 0, y: 0 } : M.sim.pathPoint(pj, v, 0); r.inst.x = p0.x; r.inst.y = p0.y; r.inst.headVisible = true; r.inst.headRot = 0;
   }
   function rtOf(pf) {
     let r = RT.get(pf.id);
@@ -216,6 +216,7 @@
       return;
     }
     const pj = pf.proj, fly = r.fly;
+    if (pj.preset === 'still') { inst.headVisible = true; inst.headRot = pj.rotOffset; inst.step(dt, 0, 0); return; }
     if (fly.phase === 'fly') {
       fly.t += dt; const u = Math.min(1, fly.t / Math.max(.05, pj.dur)), p = M.sim.pathPoint(pj, fly.v, M.sim.EASE[pj.ease](u));
       const dx = p.x - inst.x, dy = p.y - inst.y;
@@ -275,7 +276,7 @@
     g.fillStyle = '#8D929C'; g.font = '11px "Segoe UI",sans-serif'; g.fillText(`Canvas ${S.canvas.w} × ${S.canvas.h}`, ox - cw / 2 + 4, oy - ch / 2 - 6);
     const pf = cur(); if (!pf) return;
     if (!S.hidePath) for (const q of scenePfs()) {
-      if (q.kind !== 'projectile' || q.hidden) continue;
+      if (q.kind !== 'projectile' || q.hidden || q.proj.preset === 'still') continue;
       const pj = q.proj, col = M.sim.PRESETS[pj.preset].color; g.setLineDash([5, 5]); g.lineWidth = 1.5; g.strokeStyle = col; g.globalAlpha = q === pf ? .7 : .3;
       for (let i = 0; i < Math.max(1, pj.variants); i++) { const vr = M.sim.variant(pj, i); g.beginPath(); for (let k = 0; k <= 160; k++) { const p = M.sim.pathPoint(pj, vr, k / 160), s = w2s(p.x, p.y); k ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1]); } g.stroke(); }
       g.setLineDash([]); g.globalAlpha = 1; if (q !== pf) continue;
@@ -308,7 +309,7 @@
     const list = scenePfs(), pf = cur(); $('#empty').classList.toggle('hide', !!pf);
     let cnt = 0, em = 0; for (const q of list) { em += emitters(q).length; const r = RT.get(q.id); if (r) cnt += r.inst.count() + (r.impact ? r.impact.count() : 0); }
     $('#st').textContent = !pf ? 'Chưa mở prefab' : `${list.length} prefab · ${em} emitter · ${cnt} hạt · đang chọn: ${selNode() ? selNode().name : pf.name}`;
-    $('#st2').textContent = pf && pf.kind === 'projectile' ? 'Đường bay chỉ để xem trước — khi xuất, prefab nằm tại (0,0)' : '';
+    $('#st2').textContent = pf && pf.kind === 'projectile' ? (pf.proj.preset === 'still' ? 'Đang đứng yên tại (0,0), giống vị trí khi xuất' : 'Đường bay chỉ để xem trước — khi xuất, prefab nằm tại (0,0)') : '';
     $('#zoom').textContent = Math.round(view().z * 100) + '%';
   }
   // ---- ảnh nền để ướm thử ----
@@ -331,7 +332,7 @@
 
   // chuột trong viewport
   let space = false, drag = null, drawMode = false;
-  const handles = pj => pj.preset === 'arc3' ? [['A', pj, 'sx', 'sy'], ['C', pj, 'cx', 'cy'], ['B', pj, 'ex', 'ey']] : pj.preset === 'circle' ? pj.circle.map((q, i) => [String(i + 1), q, 'x', 'y']) : pj.preset === 'free' ? [] : [['A', pj, 'sx', 'sy'], ['B', pj, 'ex', 'ey']];
+  const handles = pj => pj.preset === 'arc3' ? [['A', pj, 'sx', 'sy'], ['C', pj, 'cx', 'cy'], ['B', pj, 'ex', 'ey']] : pj.preset === 'circle' ? pj.circle.map((q, i) => [String(i + 1), q, 'x', 'y']) : pj.preset === 'free' || pj.preset === 'still' ? [] : [['A', pj, 'sx', 'sy'], ['B', pj, 'ex', 'ey']];
   viewEl.addEventListener('contextmenu', e => e.preventDefault());
   viewEl.addEventListener('wheel', e => { e.preventDefault(); const r = viewEl.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, v = view(), [wx, wy] = s2w(mx, my);
     v.z = Math.max(.05, Math.min(16, v.z * Math.exp(-e.deltaY * .0015))); v.x = mx - viewEl.clientWidth / 2 - wx * v.z; v.y = my - viewEl.clientHeight / 2 + wy * v.z; }, { passive: false });
@@ -706,17 +707,17 @@
   }
   function projProps(pj) {
     const pt = (label, o, kx, ky) => row(label, num(o, kx, 'X'), num(o, ky, 'Y'));
-    let pts = '';
-    if (pj.preset === 'arc2') pts = pt('Điểm đầu (A)', 'proj', 'sx', 'sy') + pt('Điểm cuối (B)', 'proj', 'ex', 'ey') + row('Độ cong', num('proj', 'amp'), '<small>px</small>');
+    let pts = ''; const still = pj.preset === 'still';
+    if (still) pts = '<div class="note" style="margin:0">Projectile đứng yên tại (0,0), đúng như vị trí khi xuất vào Cocos. Dùng mode này để canh lại vị trí Head và Trail quanh tâm. FX ở điểm cuối không phát trong mode này.</div>';
+    else if (pj.preset === 'arc2') pts = pt('Điểm đầu (A)', 'proj', 'sx', 'sy') + pt('Điểm cuối (B)', 'proj', 'ex', 'ey') + row('Độ cong', num('proj', 'amp'), '<small>px</small>');
     else if (pj.preset === 'arc3') pts = pt('Điểm đầu (A)', 'proj', 'sx', 'sy') + pt('Điểm giữa (C)', 'proj', 'cx', 'cy') + pt('Điểm cuối (B)', 'proj', 'ex', 'ey');
     else if (pj.preset === 'circle') pts = [0, 1, 2, 3].map(i => pt('Điểm ' + (i + 1), 'proj', `circle.${i}.x`, `circle.${i}.y`)).join('');
     else pts = `<div class="f"><label>Vẽ đường</label><button class="btn w2 ${drawMode ? 'primary' : ''}" data-draw title="Bấm rồi giữ chuột trái kéo trên Viewport để vẽ đường bay">${drawMode ? 'Đang chờ vẽ…' : 'Vẽ đường bay trên Viewport'}</button></div><div class="note">${pj.free.length > 1 ? 'Đã có đường vẽ (' + pj.free.length + ' điểm). Bấm nút để vẽ lại.' : 'Chưa có đường vẽ: bấm nút rồi kéo chuột trên Viewport.'}</div>`;
     return `<div class="sec"><b>Preset đường bay</b><div class="presets" style="grid-template-columns:repeat(2,1fr)">${Object.entries(M.sim.PRESETS).map(([k, p]) => `<div class="chip ${pj.preset === k ? 'on' : ''}" data-preset="${k}"><svg viewBox="0 0 80 46"><path d="${p.icon}" stroke="${p.color}"/></svg>${p.name}</div>`).join('')}</div>
         <div class="note">Kéo các điểm tròn trên Viewport để chỉnh. Đường bay chỉ để xem trước, khi xuất prefab nằm tại (0,0).</div></div>
       <div class="sec"><b>Đường bay (xem trước)</b>${pts}
-        ${row('Thời gian bay', num('proj', 'dur'), '<small>giây</small>')}${row('Độ random', num('proj', 'rand'), '<small>px</small>')}${row('Số biến thể', num('proj', 'variants'), '<small>đường cùng màu</small>')}
-        ${fSel('Tốc độ', 'proj', 'ease', [['linear', 'Đều'], ['in', 'Nhanh dần'], ['out', 'Chậm dần'], ['inout', 'Chậm – nhanh – chậm']])}
-        <div class="f"><label>Xoay theo hướng</label>${seg('proj', 'rotateDir', [[true, 'Có'], [false, 'Không']])}</div>${row('Góc lệch', num('proj', 'rotOffset'), '<small>độ</small>', 'Xoay thêm cho Head')}</div>`;
+        ${still ? '' : row('Thời gian bay', num('proj', 'dur'), '<small>giây</small>') + row('Độ random', num('proj', 'rand'), '<small>px</small>') + row('Số biến thể', num('proj', 'variants'), '<small>đường cùng màu</small>')
+          + fSel('Tốc độ', 'proj', 'ease', [['linear', 'Đều'], ['in', 'Nhanh dần'], ['out', 'Chậm dần'], ['inout', 'Chậm – nhanh – chậm']]) + `<div class="f"><label>Xoay theo hướng</label>${seg('proj', 'rotateDir', [[true, 'Có'], [false, 'Không']])}</div>`}${row('Góc lệch', num('proj', 'rotOffset'), '<small>độ</small>', 'Xoay thêm cho Head')}</div>`;
   }
   function emitterProps(n, seqOn) {
     const s = n.ps, g = s.emitterMode === 0, pf = cur(), an = seqOn && byId(pf.seqAnim), ems = emitters(pf), nf = an ? an.frames.map(byId).filter(Boolean).length : 0;
@@ -749,7 +750,7 @@
     } else if (!n) {
       const pj = pf.proj, ip = byId(pj.impact);
       h += projProps(pj) + `
-      <div class="sec"><b>FX bung ra ở điểm cuối</b>${slot('impact', ip, 'Không có FX', ip ? 'Particle prefab · bấm ✕ để gỡ' : 'Kéo 1 Particle prefab từ Assets vào đây', 'impact')}
+      <div class="sec"><b>FX bung ra ở điểm cuối</b>${slot('impact', ip, 'Không có FX', ip ? 'Bấm để xem trong Assets · bấm ✕ để gỡ' : 'Bấm để chọn, hoặc kéo 1 Particle prefab từ Assets vào', 'impact')}
         <div class="note">FX này là prefab riêng nằm cùng folder, được xuất kèm trong zip.</div></div>` + nodeSec('pf', 'Node gốc (' + esc(pf.name) + ')', false);
     } else if (n.type === 'sprite') {
       const an = byId(n.anim);
@@ -759,6 +760,22 @@
       ${nodeSec('node', 'Node')}<div class="sec"><b>Blend</b>${fSel('Src Blend Factor', 'node', 'srcBlend', BL)}${fSel('Dst Blend Factor', 'node', 'dstBlend', BL)}</div>`;
     } else h += emitterProps(n, false);
     P.innerHTML = h;
+  }
+  // nhảy tới 1 file trong Assets và nháy sáng nó
+  function revealAsset(a) {
+    const f = parentOf(a.id); if (!f) return; S.folder = f.id; S.selAsset = a.id; area = 'assets'; renderAssets();
+    const row = $(`#ftree [data-fid="${f.id}"]`); if (row) row.scrollIntoView({ block: 'nearest' });
+    const t = $(`#grid [data-aid="${a.id}"]`); if (t) { t.scrollIntoView({ block: 'nearest' }); t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); }
+  }
+  // bảng chọn nhanh particle prefab để gán làm FX
+  function pickImpact(anchor) {
+    const pf = cur(), list = all().filter(a => a.type === 'prefab' && a.kind === 'particle' && a !== pf);
+    $$('.ctx').forEach(c => c.remove()); const c = document.createElement('div'); c.className = 'ctx picker';
+    c.innerHTML = list.length ? `<p>Chọn particle để gán làm FX</p><div class="pgrid">${list.map(a => { const pr = projectOf(a); return `<button data-pid="${a.id}" title="${esc(pathOf(a))}"><i>${IC.spark}</i><span>${esc(a.name)}</span><small>${esc(pr ? pr.name : '')}</small></button>`; }).join('')}</div>`
+      : '<p>Chưa có Particle prefab nào. Tạo 1 cái ở tab Particle System trước.</p>';
+    c.addEventListener('click', e => { const b = e.target.closest('[data-pid]'); if (!b) return; c.remove(); pf.proj.impact = b.dataset.pid; RT.delete(pf.id); dirty(); renderProps(); });
+    document.body.append(c); const r = anchor.getBoundingClientRect(), cr = c.getBoundingClientRect();
+    c.style.left = Math.max(4, Math.min(r.left, innerWidth - cr.width - 6)) + 'px'; c.style.top = (r.bottom + 4 + cr.height > innerHeight - 6 ? Math.max(4, r.top - cr.height - 4) : r.bottom + 4) + 'px';
   }
   function chipPath(k, i) { const pj = { preset: k, sx: 8, sy: k === 'arc' ? 6 : 23, ex: 72, ey: k === 'arc' ? 6 : 23, amp: k === 'arc' ? 34 - i * 9 : 24 - i * 6, rand: 0, seed: i }, v = M.sim.variant(pj, i); v.ex = v.ey = 0; if (i === 1) v.s = -v.s; let d = ''; for (let j = 0; j <= 40; j++) { const p = M.sim.pathPoint(pj, v, j / 40); d += (j ? 'L' : 'M') + p.x.toFixed(1) + ' ' + (46 - p.y).toFixed(1); } return d; }
   function syncInputs() { const sn = selNode(); if (sn && sn.ps) $$('#props [data-m]').forEach(i => { if (i !== document.activeElement) { const v = MF[i.dataset.m].g(sn.ps); if (String(i.value) !== String(v)) i.value = v; } });
@@ -784,7 +801,9 @@
     if ((b = e.target.closest('[data-seg]'))) { const [o, k, v] = b.dataset.seg.split('|'); sp(target(o), k, v === 'true' ? true : v === 'false' ? false : v); if (k === 'mode') applyMode(pf); if (k === 'play') applyPlay(pf); RT.delete(pf.id); dirty(); return renderProps(); }
     if ((b = e.target.closest('[data-preset]'))) { pf.proj.preset = b.dataset.preset; dirty(); renderProps(); RT.delete(pf.id); return; }
     if ((b = e.target.closest('[data-dir]'))) { const fs = (await pickFiles($('#fileDir'))).filter(isImg); if (!fs.length) return toast('Folder không có ảnh PNG/JPG nào'); const nm = (fs[0].webkitRelativePath || '').split('/')[0]; return slotFiles(b.dataset.dir, fs, nm); }
-    if ((b = e.target.closest('[data-pick]'))) { const k = b.dataset.pick; if (k === 'impact' || k === 'seq') return; const fs = await pickFiles($('#fileImg')); if (fs.length) slotFiles(k, fs); }
+    if ((b = e.target.closest('[data-pick]'))) { const k = b.dataset.pick;
+      if (k === 'impact') { const ip = byId(pf.proj.impact); return ip ? revealAsset(ip) : pickImpact(b); }
+      if (k === 'seq') { const an = byId(pf.seqAnim); if (an) revealAsset(an); return; } const fs = await pickFiles($('#fileImg')); if (fs.length) slotFiles(k, fs); }
   });
 
   // giữ chuột + kéo ngang trên ô số để tăng giảm nhanh (Shift = chậm, bấm thường = gõ số)

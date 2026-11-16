@@ -1,11 +1,10 @@
 {
-  "version": "1.7.0",
+  "version": "1.8.0",
   "date": "2026-11-16",
   "new": [
-    "Ô \"Lệch hình\" cho từng emitter: xem và tự đặt emitter bắt đầu chuỗi hình từ hình thứ mấy"
+    "Projectile: thêm mode \"Đứng yên tại chỗ\" để canh lại vị trí Head và Trail",
+    "Bấm vào ô FX bung ra: nhảy tới file đó trong Assets, hoặc mở bảng chọn nhanh particle nếu chưa gán"
   ],
-  "improved": [
-    "Nhập zip giữ nguyên độ lệch hình của từng emitter"
-  ],
+  "improved": [],
   "fixed": []
 }
