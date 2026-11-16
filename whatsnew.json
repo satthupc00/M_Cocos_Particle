@@ -1,12 +1,9 @@
 {
-  "version": "1.9.0",
+  "version": "1.9.1",
   "date": "2026-11-16",
-  "new": [
-    "Head của Projectile có 2 tab M particle và CC giống emitter",
-    "Head: chọn xoay / không xoay theo đường bay, và kiểu hoà màu Normal / Additive"
-  ],
+  "new": [],
   "improved": [
-    "Góc lệch của Head giờ là ô Góc xoay ngay trong mục Head"
+    "Thống nhất tên gọi: mọi nơi đều dùng Position, Rotation, Scale cho vị trí, góc xoay và tỉ lệ của node"
   ],
   "fixed": []
 }
