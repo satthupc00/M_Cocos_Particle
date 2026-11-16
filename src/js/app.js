@@ -234,7 +234,7 @@
     for (const pf of list) stepPf(pf, rtOf(pf), dt);
   }
   const getA = id => byId(id);
-  function frameOf(anim, i, n, time) { const fr = M.seqFrames(anim, i, n, getA); return fr.length ? fr[Math.floor(time * anim.sample) % fr.length] : null; }
+  function frameOf(anim, i, n, time, nd) { const fr = M.seqFrames(anim, i, n, getA, nd); return fr.length ? fr[Math.floor(time * anim.sample) % fr.length] : null; }
   // ma trận xoay + co giãn (góc ngược chiều kim đồng hồ như Cocos)
   const lin = o => { const r = (o.rot || 0) * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r); return [c * o.sx, sn * o.sx, -sn * o.sy, c * o.sy]; };
   const mul = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3]];
@@ -245,7 +245,7 @@
       if (n.hidden) continue;
       let a = byId(n.image); const W = I.nodePos(n); R.mat(mul(LR, lin(n)), W.x, W.y);
       if (n.type === 'emitter') {
-        if (seq) a = frameOf(seq, ems.indexOf(n), ems.length, I.time) || a;
+        if (seq) a = frameOf(seq, ems.indexOf(n), ems.length, I.time, n) || a;
         const e = I.emitters.get(n.id); if (!e || !a) continue;
         R.batch(a, n.ps.srcBlend, n.ps.dstBlend); const ar = a.w / a.h, kw = ar > 1 ? 1 : ar, kh = ar > 1 ? 1 / ar : 1, free = n.ps.positionType === 0;
         for (const p of e.parts) R.quad(p.x - (free ? W.x - p.sx : 0), p.y - (free ? W.y - p.sy : 0), p.size * kw, p.size * kh, p.rot, p.c);
@@ -603,7 +603,7 @@
   // Ctrl+D: nhân bản node đang chọn, hoặc cả prefab nếu đang chọn gốc
   function dupSelected() {
     const pf = cur(); if (!pf) return; const n = selNode();
-    if (n) { const c = Object.assign(clone(n), { id: uid(), name: nodeName(pf, n.name.replace(/_\d+$/, '')) }); pf.nodes.splice(pf.nodes.indexOf(n) + 1, 0, c); select(pf, c); dirty(); flipRender($('#treeList'), renderTree); renderProps(); }
+    if (n) { const c = Object.assign(clone(n), { id: uid(), name: nodeName(pf, n.name.replace(/_\d+$/, '')) }); delete c.seqOff; pf.nodes.splice(pf.nodes.indexOf(n) + 1, 0, c); select(pf, c); dirty(); flipRender($('#treeList'), renderTree); renderProps(); }
     else { const c = dupAsset(pf); if (c) toast(`Đã nhân bản thành "${esc(c.name)}" trong Assets`); }
   }
   // bấm chọn / nút ẩn / nút xoá
@@ -719,8 +719,9 @@
         <div class="f"><label>Xoay theo hướng</label>${seg('proj', 'rotateDir', [[true, 'Có'], [false, 'Không']])}</div>${row('Góc lệch', num('proj', 'rotOffset'), '<small>độ</small>', 'Xoay thêm cho Head')}</div>`;
   }
   function emitterProps(n, seqOn) {
-    const s = n.ps, g = s.emitterMode === 0;
-    return `<div class="sec"><b>Hình ảnh hạt</b>${slot('img', byId(n.image), 'Sprite Frame', seqOn ? 'Đang dùng chuỗi hình. Ảnh này dùng khi gỡ chuỗi hình' : 'Kéo ảnh vào đây hoặc bấm để chọn')}</div>
+    const s = n.ps, g = s.emitterMode === 0, pf = cur(), an = seqOn && byId(pf.seqAnim), ems = emitters(pf), nf = an ? an.frames.map(byId).filter(Boolean).length : 0;
+    const offRow = nf ? `<div class="f" style="margin-top:8px"><label title="Emitter này bắt đầu chuỗi hình từ hình thứ mấy (0 = hình đầu tiên). Đặt mỗi emitter một số khác nhau để các đồng xu không lật giống hệt nhau">Lệch hình</label><input class="num" type="number" step="1" min="0" max="${nf - 1}" data-seqoff value="${M.seqOffset(n, ems.indexOf(n), ems.length, nf)}" title="Số hình lệch (0 đến ${nf - 1})"><button class="btn" data-seqauto title="Để app tự chia đều độ lệch theo số emitter" style="padding:4px 8px">${typeof n.seqOff === 'number' ? 'Về tự động' : 'Đang tự động'}</button></div><div class="note">Chuỗi có ${nf} hình. <span id="seqNote">${typeof n.seqOff === 'number' ? 'Emitter này đang dùng số bạn đặt.' : 'Đang tự chia đều theo ' + ems.length + ' emitter; gõ số để tự đặt.'}</span></div>` : '';
+    return `<div class="sec"><b>Hình ảnh hạt</b>${slot('img', byId(n.image), 'Sprite Frame', seqOn ? 'Đang dùng chuỗi hình. Ảnh này dùng khi gỡ chuỗi hình' : 'Kéo ảnh vào đây hoặc bấm để chọn')}${offRow}</div>
     ${nodeSec('node', 'Node')}
     <div class="sec">${ptabs()}${S.ptab === 'cc' ? `<div class="note" style="margin:0 0 8px">Thông số gốc của Cocos: tên trùng với ParticleSystem trong Cocos Creator. Cột phải là giá trị "Var" (độ lệch ngẫu nhiên ±).</div>
       ${fN('Duration', 'node', 'ps.duration', '', 'Thời gian phát (giây). -1 = loop mãi')}${fN('Emission Rate', 'node', 'ps.emissionRate', '', 'Số hạt sinh ra mỗi giây')}${fN('Life', 'node', 'ps.life', 'ps.lifeVar', 'Thời gian sống của hạt (giây) và độ lệch')}${fN('Total Particles', 'node', 'ps.totalParticles', '', 'Số hạt tối đa cùng lúc')}
@@ -765,6 +766,7 @@
   const P = $('#props');
   P.addEventListener('input', e => {
     const i = e.target, sn = selNode();
+    if (i.dataset.seqoff !== undefined && sn) { const v = parseInt(i.value); if (isNaN(v)) return; sn.seqOff = v; const bt = $('[data-seqauto]'), nt = $('#seqNote'); if (bt) bt.textContent = 'Về tự động'; if (nt) nt.textContent = 'Emitter này đang dùng số bạn đặt.'; return dirty(); }
     if (i.dataset.m && sn) { const v = parseFloat(i.value); if (isNaN(v)) return; MF[i.dataset.m].s(sn.ps, v); syncInputs(); return dirty(); }
     if (i.dataset.ms && sn) { MS[i.dataset.ms].s(sn.ps, i.value); return dirty(); }
     if (!i.dataset.k) return; const t = target(i.dataset.o); if (!t) return;
@@ -775,6 +777,7 @@
   });
   P.addEventListener('click', async e => {
     const pf = cur(), n = selNode(); let b;
+    if ((b = e.target.closest('[data-seqauto]'))) { if (n) { delete n.seqOff; dirty(); } return renderProps(); }
     if ((b = e.target.closest('[data-ptab]'))) { S.ptab = b.dataset.ptab; save(); return renderProps(); }
     if ((b = e.target.closest('[data-draw]'))) { drawMode = !drawMode; renderProps(); return renderRef(); }
     if ((b = e.target.closest('[data-clear]'))) { e.stopPropagation(); const k = b.dataset.clear; if (k === 'seq') pf.seqAnim = null; if (k === 'sanim') n.anim = null; if (k === 'impact') pf.proj.impact = null; dirty(); return renderProps(); }
@@ -789,7 +792,7 @@
   let scrub = null;
   document.addEventListener('pointerdown', e => {
     const i = e.target; if (e.button !== 0 || !i.matches || !i.matches('input.num[type=number]') || i === document.activeElement) return;
-    const v = parseFloat(i.value) || 0, a = Math.abs(v), int = INTK.test(i.dataset.k || '') || i.dataset.m === 'total' || i.id === 'cw' || i.id === 'ch';
+    const v = parseFloat(i.value) || 0, a = Math.abs(v), int = INTK.test(i.dataset.k || '') || i.dataset.m === 'total' || i.dataset.seqoff !== undefined || i.id === 'cw' || i.id === 'ch';
     scrub = { i, x: e.clientX, v, on: false, int, step: int ? Math.max(.25, a / 200) : a >= 100 ? 1 : a >= 10 ? .25 : a >= 1 ? .02 : .01 };
     e.preventDefault(); i.setPointerCapture(e.pointerId);
   }, true);

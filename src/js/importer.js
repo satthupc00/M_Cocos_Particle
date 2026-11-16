@@ -27,7 +27,7 @@
       for (const p of mine) if (ASSET.test(p) && !(await meta(p))) bad.push(p.slice(D.length) + '.meta');
       if (bad.length) fail('File zip không hợp lệ: thiếu hoặc hỏng file meta:\n' + bad.slice(0, 6).join('\n') + (bad.length > 6 ? `\n… và ${bad.length - 6} file khác` : ''));
       const v3 = !!(await meta(D + kids(D).find(n => RE.pf.test(n)))).importer;
-      const sf = new Map(), clips = new Map(), warn = [];
+      const sf = new Map(), clips = new Map(), warn = [], offsOf = new Map();
 
       // 1) cây folder + ảnh
       const build = async (d, name) => {
@@ -50,11 +50,14 @@
       // 2) animation clip
       for (const p of mine.filter(p => /\.anim$/i.test(p))) {
         let j; try { j = JSON.parse(await text(p)); } catch (e) { fail('File animation bị hỏng: ' + p.slice(D.length)); }
-        let frames = [], sample = 30;
-        if (Array.isArray(j)) { sample = j[0].sample || 30; const c = j.find(o => o && o.__type__ === 'cc.ObjectCurve'); if (c) frames = (c._values || []).map(ref).filter(Boolean); }
+        let frames = [], sample = 30; const offs = {}, note = (name, list) => { if (name && frames.length && list.length) { const i = frames.indexOf(list[0]); if (i >= 0) offs[name] = i; } };
+        if (Array.isArray(j)) { sample = j[0].sample || 30; const c = j.find(o => o && o.__type__ === 'cc.ObjectCurve'); if (c) frames = (c._values || []).map(ref).filter(Boolean);
+          j.forEach(o => { if (!o || o.__type__ !== 'cc.animation.TrackPath') return; const hp = (o._paths || []).map(x => x && typeof x.__id__ === 'number' ? j[x.__id__] : null).find(x => x && x.__type__ === 'cc.animation.HierarchyPath'); if (!hp) return;
+            const tr = j.find(t => t && t.__type__ === 'cc.animation.ObjectTrack' && j[t._binding.path.__id__] === o), cv = tr && j[j[tr._channel.__id__]._curve.__id__]; if (cv) note(hp.path, (cv._values || []).map(ref).filter(Boolean)); }); }
         else { sample = j.sample || 30; const cd = j.curveData || {}, lists = []; const grab = comps => Object.values(comps || {}).forEach(c => c.spriteFrame && lists.push(c.spriteFrame));
-          grab(cd.comps); Object.values(cd.paths || {}).forEach(x => grab(x.comps)); if (lists[0]) frames = lists[0].map(k => ref(k.value)).filter(Boolean); }
-        const a = { id: h.uid(), type: 'anim', name: p.slice(p.lastIndexOf('/') + 1).replace(/\.anim$/i, ''), sample, frames: frames.map(f => f.id), uuid: (await meta(p)).uuid };
+          grab(cd.comps); Object.values(cd.paths || {}).forEach(x => grab(x.comps)); if (lists[0]) frames = lists[0].map(k => ref(k.value)).filter(Boolean);
+          Object.entries(cd.paths || {}).forEach(([name, x]) => Object.values(x.comps || {}).forEach(c => c.spriteFrame && note(name, c.spriteFrame.map(k => ref(k.value)).filter(Boolean)))); }
+        const a = { id: h.uid(), type: 'anim', name: p.slice(p.lastIndexOf('/') + 1).replace(/\.anim$/i, ''), sample, frames: frames.map(f => f.id), uuid: (await meta(p)).uuid }; offsOf.set(a, offs);
         folderOf(dirOf(p)).children.push(a); clips.set(a.uuid, a);
       }
 
@@ -88,7 +91,7 @@
             pf.kind = 'projectile'; pf.nodes.push(Object.assign({ id: h.uid(), type: 'sprite', name: c._name, image: img ? img.id : null, anim: an ? an.id : null, srcBlend: bl(sp._srcBlendFactor), dstBlend: bl(sp._dstBlendFactor) }, xf(c)));
           } else warn.push(`${pname}: node "${c._name}" không phải ParticleSystem hay Sprite nên bị bỏ qua`);
         }
-        const seq = clipOf(root); if (seq && pf.kind === 'particle') pf.seqAnim = seq.id;
+        const seq = clipOf(root); if (seq && pf.kind === 'particle') { pf.seqAnim = seq.id; const o = offsOf.get(seq) || {}; pf.nodes.forEach(n => { if (n.type === 'emitter' && typeof o[n.name] === 'number') n.seqOff = o[n.name]; }); }
         folderOf(dirOf(p)).children.push(pf);
       }
       (function clean(f) { delete f._dir; f.children.forEach(c => c.type === 'folder' && clean(c)); })(tree);

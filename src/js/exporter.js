@@ -15,10 +15,13 @@
   const sf3 = img => img ? { __uuid__: img.uuid + '@f9941', __expectedType__: 'cc.SpriteFrame' } : null;
 
   // ---------- thứ tự frame của chuỗi hình cho từng emitter (lệch pha để hạt không lật giống hệt nhau) ----------
-  function seqFrames(anim, idx, count, get) {
+  // độ lệch hình của 1 emitter: số do người dùng đặt (node.seqOff), nếu chưa đặt thì tự chia đều theo số emitter
+  const seqOffset = (nd, idx, count, n) => !n ? 0 : nd && typeof nd.seqOff === 'number' ? ((Math.round(nd.seqOff) % n) + n) % n : count > 1 ? Math.floor(idx * n / count) % n : 0;
+  M.seqOffset = seqOffset;
+  function seqFrames(anim, idx, count, get, nd) {
     const fr = anim.frames.map(get).filter(Boolean), n = fr.length;
     if (!n) return [];
-    const off = count > 1 ? Math.floor(idx * n / count) % n : 0;
+    const off = seqOffset(nd, idx, count, n);
     return fr.map((_, i) => fr[(i + off) % n]);
   }
   M.seqFrames = seqFrames;
@@ -58,7 +61,7 @@
     for (const n of pf.nodes) {
       const id = out.length; let img = get(n.image);
       if (n.type === 'emitter') {
-        if (seq) img = seqFrames(seq, ems.indexOf(n), ems.length, get)[0] || img;
+        if (seq) img = seqFrames(seq, ems.indexOf(n), ems.length, get, n)[0] || img;
         const nd = node2(n.name, { __id__: 1 }, 2, n.x, n.y, 0, 0, n); out.push(nd);
         nd._components.push({ __id__: out.length }); out.push(ps2(n, id, img));
         nd._prefab = { __id__: out.length }; out.push(info());
@@ -88,7 +91,7 @@
     for (const pf of prefabs) {
       if (pf.kind === 'particle' && pf.seqAnim === anim.id) {
         const ems = pf.nodes.filter(n => n.type === 'emitter');
-        ems.forEach((n, i) => { if (!seen.has(n.name)) { seen.add(n.name); paths.push({ name: n.name, idx: i, count: ems.length }); } });
+        ems.forEach((n, i) => { if (!seen.has(n.name)) { seen.add(n.name); paths.push({ name: n.name, idx: i, count: ems.length, node: n }); } });
       }
       for (const n of pf.nodes) if (n.type === 'sprite' && n.anim === anim.id) onNode = true;
     }
@@ -102,7 +105,7 @@
     const keys = fr => fr.map((f, i) => ({ frame: times[i], value: { __uuid__: f.sub } }));
     const cd = {};
     if (u.onNode) cd.comps = { 'cc.Sprite': { spriteFrame: keys(seqFrames(anim, 0, 1, get)) } };
-    if (u.paths.length) { cd.paths = {}; for (const p of u.paths) cd.paths[p.name] = { comps: { 'cc.ParticleSystem': { spriteFrame: keys(seqFrames(anim, p.idx, p.count, get)) } } }; }
+    if (u.paths.length) { cd.paths = {}; for (const p of u.paths) cd.paths[p.name] = { comps: { 'cc.ParticleSystem': { spriteFrame: keys(seqFrames(anim, p.idx, p.count, get, p.node)) } } }; }
     return { __type__: 'cc.AnimationClip', _name: anim.name, _objFlags: 0, _native: '', _duration: n ? (n - 1) / anim.sample : 0, sample: anim.sample, speed: 1, wrapMode: 2, curveData: cd, events: [] };
   }
   function imgMeta2(a) {
@@ -148,7 +151,7 @@
       const id = out.length; let img = get(n.image);
       const nd = node3(n.name, { __id__: 1 }, n.x, n.y, n); out.push(nd); root._children.push({ __id__: id });
       if (n.type === 'emitter') {
-        if (seq) img = seqFrames(seq, ems.indexOf(n), ems.length, get)[0] || img;
+        if (seq) img = seqFrames(seq, ems.indexOf(n), ems.length, get, n)[0] || img;
         addComp(nd, ui(id, 100, 100)); addComp(nd, pid => ps3(n, id, pid, img));
       } else {
         const an = get(n.anim); if (an) img = get(an.frames[0]) || img;
@@ -185,7 +188,7 @@
       out[t + 1] = { __type__: 'cc.animation.TrackPath', _paths: paths };
     };
     if (u.onNode) track(null, 'cc.Sprite', seqFrames(anim, 0, 1, get));
-    for (const p of u.paths) track(p.name, 'cc.ParticleSystem2D', seqFrames(anim, p.idx, p.count, get));
+    for (const p of u.paths) track(p.name, 'cc.ParticleSystem2D', seqFrames(anim, p.idx, p.count, get, p.node));
     return out;
   }
   function imgMeta3(a) {
