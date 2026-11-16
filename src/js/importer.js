@@ -13,8 +13,9 @@
     const files = Object.keys(zip.files).filter(p => !zip.files[p].dir && !/(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db)/.test(p));
     const dirs = new Set(['']); files.forEach(p => { const a = p.split('/'); for (let i = 1; i < a.length; i++) dirs.add(a.slice(0, i).join('/') + '/'); });
     const kids = d => [...new Set([...dirs].filter(x => x !== d && x.startsWith(d) && x.slice(d.length).split('/').length === 2).map(x => x.slice(d.length, -1)))];
-    const roots = [...dirs].filter(d => { const k = kids(d); return k.some(n => RE.anim.test(n)) && k.some(n => RE.img.test(n)) && k.some(n => RE.pf.test(n)); });
-    if (!roots.length) fail('File zip không hợp lệ: cần có đủ 3 folder Animation, Images và Prefabs nằm cạnh nhau.');
+    // folder Animation không bắt buộc: prefab không dùng chuỗi hình thì Cocos không tạo folder này
+    const roots = [...dirs].filter(d => { const k = kids(d); return k.some(n => RE.img.test(n)) && k.some(n => RE.pf.test(n)); });
+    if (!roots.length) fail('File zip không hợp lệ: cần có folder Images và Prefabs nằm cạnh nhau (và folder Animation nếu có dùng chuỗi hình).');
     const text = p => zip.file(p).async('string');
     const metaCache = new Map();
     const meta = async p => { if (metaCache.has(p)) return metaCache.get(p); let m = null; const f = zip.file(p + '.meta'); if (f) { try { m = JSON.parse(await f.async('string')); if (!m || typeof m.uuid !== 'string' || !m.uuid) m = null; } catch (e) { m = null; } } metaCache.set(p, m); return m; };
@@ -67,6 +68,7 @@
         const comps = n => (n._components || []).map(at).filter(Boolean);
         const clipOf = n => { const a = comps(n).find(c => c.__type__ === 'cc.Animation'); const u = a && a._defaultClip && a._defaultClip.__uuid__; return u ? clips.get(u) : null; };
         const t = xf(root), pf = { id: h.uid(), type: 'prefab', kind: 'particle', name: pname, uuid: (await meta(p)).uuid, nodes: [], seqAnim: null, x: 0, y: 0, rot: t.rot, sx: t.sx, sy: t.sy };
+        if (typeof root._layer === 'number') pf.layer = root._layer;
         for (const c of (root._children || []).map(at).filter(Boolean)) {
           const cs = comps(c), ps = cs.find(x => x.__type__ === 'cc.ParticleSystem' || x.__type__ === 'cc.ParticleSystem2D'), sp = cs.find(x => x.__type__ === 'cc.Sprite');
           if ((c._children || []).length) warn.push(`${pname}: node con bên trong "${c._name}" bị bỏ qua`);
@@ -79,7 +81,8 @@
             s.positionType = ps._positionType !== undefined ? ps._positionType : ps.positionType || 0;
             ['startColor', 'startColorVar', 'endColor', 'endColorVar'].forEach(k => s[k] = col(k)); ['sourcePos', 'posVar', 'gravity'].forEach(k => s[k] = v2(k));
             s.srcBlend = bl(ps._srcBlendFactor); s.dstBlend = bl(ps._dstBlendFactor);
-            const img = ref(ps._spriteFrame); pf.nodes.push(Object.assign({ id: h.uid(), type: 'emitter', name: c._name, image: img ? img.id : null, ps: s }, xf(c)));
+            const img = ref(ps._spriteFrame); if (!img) warn.push(`${pname}: emitter "${c._name}" trỏ tới 1 ảnh không có trong zip nên tạm dùng chấm tròn mặc định`);
+          pf.nodes.push(Object.assign({ id: h.uid(), type: 'emitter', name: c._name, image: img ? img.id : null, ps: s }, xf(c)));
           } else if (sp) {
             const is3 = !!c._lpos, bl = v => (is3 ? BF3[v] : Object.keys(M.GLB).find(k => M.GLB[k] === v)) || 'SRC_ALPHA', img = ref(sp._spriteFrame), an = clipOf(c);
             pf.kind = 'projectile'; pf.nodes.push(Object.assign({ id: h.uid(), type: 'sprite', name: c._name, image: img ? img.id : null, anim: an ? an.id : null, srcBlend: bl(sp._srcBlendFactor), dstBlend: bl(sp._dstBlendFactor) }, xf(c)));

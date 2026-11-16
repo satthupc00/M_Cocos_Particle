@@ -1,9 +1,12 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "date": "2026-11-16",
   "new": [
-    "Update Administrator"
+    "Xuất zip cho Cocos 3.7.3 (tên file có đuôi _373)",
+    "Nhập được file zip project của Cocos 3.7.3"
   ],
-  "improved": [],
+  "improved": [
+    "Khi nhập zip, folder Animation không còn bắt buộc (prefab không dùng chuỗi hình thì không có folder này)"
+  ],
   "fixed": []
 }

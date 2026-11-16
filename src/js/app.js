@@ -437,11 +437,13 @@
       const res = await M.importer.parse(file, { uid, uuid4, defPS, loadImg }); let first = null, warn = [];
       for (const r of res) { const t = r.tree; t.name = uniq(S.root, t.name); S.root.children.push(t); idx = null; warn = warn.concat(r.warn);
         walk(a => { if (a.type !== 'prefab') return; first = first || a;
+          a._needImg = a.nodes.some(n => !n.image);
           if (a.kind === 'particle') { const e = emitters(a)[0]; a.mode = e && e.ps.posVar.x > 100 ? 'fall' : 'burst'; a.play = e && e.ps.duration !== -1 ? 'once' : 'loop'; } else a.proj = defProj(); }, t); }
+      for (const a of all().filter(x => x.type === 'prefab' && x._needImg)) { delete a._needImg; const pr = projectOf(a); if (!pr) continue; const im = await builtinImg(pr, 'Circle'); a.nodes.forEach(n => { if (!n.image) n.image = im.id; }); }
       t0.remove(); dirty(); if (first) { S.folder = parentOf(first.id).id; openPrefab(first); } else renderAll();
       toast(`Đã nhập ${res.length} project từ "${esc(file.name)}"` + (warn.length ? `<br><span style="color:var(--warn)">${warn.slice(0, 3).map(esc).join('<br>')}</span>` : ''), warn.length ? 7000 : 3000);
     } catch (err) { t0.remove(); if (!err.user) console.error(err);
-      modal(`${dlgHead('Không nhập được file zip')}<div class="bd"><p style="white-space:pre-wrap;color:var(--text)">${esc(err.user ? err.message : 'File zip không đúng định dạng project Cocos (' + err.message + ')')}</p><p>File zip cần có đủ 3 folder Animation, Images, Prefabs và các file .meta đi kèm (giống file do app này hoặc Cocos xuất ra).</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`); }
+      modal(`${dlgHead('Không nhập được file zip')}<div class="bd"><p style="white-space:pre-wrap;color:var(--text)">${esc(err.user ? err.message : 'File zip không đúng định dạng project Cocos (' + err.message + ')')}</p><p>File zip cần có folder Images, Prefabs (và Animation nếu dùng chuỗi hình) cùng các file .meta đi kèm, giống file do app này hoặc Cocos xuất ra.</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`); }
   }
   // ---- scene: chỉ lưu đường dẫn tới prefab và ảnh nền ----
   const scenes = () => { const f = S.root.children.find(c => c.sys === 'Scenes'); return f ? f.children.filter(c => c.type === 'scene') : []; };
@@ -855,7 +857,7 @@
   async function exportDlg() {
     if ($('.modal')) return; const tops = S.root.children.filter(c => c.type === 'folder' && !c.sys); if (!tops.length) return toast('Chưa có folder nào để xuất');
     const pf = cur(), def = (pf && projectOf(pf)) || tops[0];
-    const r = await modal(`${dlgHead('Xuất zip cho Cocos')}<div class="bd"><p>Phiên bản Cocos Creator</p><div class="seg" id="exVer"><button data-v="213" class="${S.ver === '213' ? 'on' : ''}">Cocos 2.1.3</button><button data-v="363" class="${S.ver === '363' ? 'on' : ''}">Cocos 3.6.3</button></div>
+    const r = await modal(`${dlgHead('Xuất zip cho Cocos')}<div class="bd"><p>Phiên bản Cocos Creator</p><div class="seg" id="exVer"><button data-v="213" class="${S.ver === '213' ? 'on' : ''}">Cocos 2.1.3</button><button data-v="363" class="${S.ver === '363' ? 'on' : ''}">Cocos 3.6.3</button><button data-v="373" class="${S.ver === '373' ? 'on' : ''}">Cocos 3.7.3</button></div>
       <p>Folder cần xuất</p><select class="num" id="exF">${tops.map(t => `<option value="${t.id}" ${t === def ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
       <p>File tạo ra: <b id="exName" style="color:var(--text)"></b></p><p>Giải nén rồi kéo folder vào mục assets của project Cocos.</p></div><div class="ft"><button class="btn" data-close>Huỷ</button><button class="btn primary" id="exGo">Xuất zip</button></div>`,
       (m, close) => { const upd = () => m.querySelector('#exName').textContent = `${byId(m.querySelector('#exF').value).name}_${S.ver}.zip`; upd();

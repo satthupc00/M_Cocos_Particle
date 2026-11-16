@@ -132,15 +132,16 @@
       _startColor: col(s.startColor), _startColorVar: col(s.startColorVar), _endColor: col(s.endColor), _endColorVar: col(s.endColorVar), _positionType: s.positionType, _id: ''
     };
   }
-  function prefab3(pf, get) {
-    const out = [{ __type__: 'cc.Prefab', _name: pf.name, _objFlags: 0, _native: '', data: { __id__: 1 }, optimizationPolicy: 0, persistent: false, asyncLoadAssets: false }];
+  // v37 = true: định dạng Cocos 3.7.x (thêm _mobility, PrefabInfo có instance / targetOverrides, không còn asyncLoadAssets)
+  function prefab3(pf, get, v37) {
+    const out = [Object.assign({ __type__: 'cc.Prefab', _name: pf.name, _objFlags: 0, _native: '', data: { __id__: 1 }, optimizationPolicy: 0, persistent: false }, v37 ? {} : { asyncLoadAssets: false })];
     const node3 = (name, parent, x, y, t = {}) => { const hr = (t.rot || 0) * Math.PI / 360; const o = { __type__: 'cc.Node', _name: name, _objFlags: 0 }; if (!parent) o.__editorExtras__ = {};
-      return Object.assign(o, { _parent: parent, _children: [], _active: true, _components: [], _prefab: null, _lpos: v3(x, y, 0), _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: Math.sin(hr), w: Math.cos(hr) }, _lscale: v3(t.sx || 1, t.sy || 1, 1), _layer: 33554432, _euler: v3(0, 0, t.rot || 0), _id: '' }); };
+      return Object.assign(o, { _parent: parent, _children: [], _active: true, _components: [], _prefab: null, _lpos: v3(x, y, 0), _lrot: { __type__: 'cc.Quat', x: 0, y: 0, z: Math.sin(hr), w: Math.cos(hr) }, _lscale: v3(t.sx || 1, t.sy || 1, 1) }, v37 ? { _mobility: 0 } : {}, { _layer: pf.layer || 33554432, _euler: v3(0, 0, t.rot || 0), _id: '' }); };
     // thêm component + CompPrefabInfo ngay sau
     const addComp = (nd, make) => { const cid = out.length; nd._components.push({ __id__: cid }); out.push(make(cid + 1)); out.push({ __type__: 'cc.CompPrefabInfo', fileId: fileId() }); };
     const ui = (nid, w, h) => pid => ({ __type__: 'cc.UITransform', _name: '', _objFlags: 0, node: { __id__: nid }, _enabled: true, __prefab: { __id__: pid }, _contentSize: { __type__: 'cc.Size', width: w, height: h }, _anchorPoint: v2(0.5, 0.5), _id: '' });
     const anim = (nid, clip) => pid => { const r = { __uuid__: clip.uuid, __expectedType__: 'cc.AnimationClip' }; return { __type__: 'cc.Animation', _name: '', _objFlags: 0, node: { __id__: nid }, _enabled: true, __prefab: { __id__: pid }, playOnLoad: true, _clips: [r], _defaultClip: r, _id: '' }; };
-    const info = () => ({ __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __id__: 0 }, fileId: fileId() });
+    const info = isRoot => Object.assign({ __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __id__: 0 }, fileId: fileId() }, v37 ? (isRoot ? { instance: null, targetOverrides: null } : { instance: null, targetOverrides: null, nestedPrefabInstanceRoots: null }) : {});
     const root = node3(pf.name, null, 0, 0, pf); out.push(root);
     const seq = pf.kind === 'particle' && get(pf.seqAnim), ems = pf.nodes.filter(n => n.type === 'emitter');
     for (const n of pf.nodes) {
@@ -164,7 +165,7 @@
     }
     addComp(root, ui(1, 100, 100));
     if (seq) addComp(root, anim(1, seq));
-    root._prefab = { __id__: out.length }; out.push(info());
+    root._prefab = { __id__: out.length }; out.push(info(true));
     return out;
   }
   function clip3(anim, prefabs, get) {
@@ -213,7 +214,7 @@
   function dataToBytes(d) { const b = atob(d.split(',')[1]), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
   // folder: node thư mục cần xuất; ver: '213' | '363'; all: mọi asset trong project
   function build(folder, ver, all) {
-    const zip = new JSZip(), v3x = ver === '363', byId = new Map(all.map(a => [a.id, a])), get = id => id ? byId.get(id) : null;
+    const zip = new JSZip(), v3x = ver !== '213', v37 = ver === '373', byId = new Map(all.map(a => [a.id, a])), get = id => id ? byId.get(id) : null;
     const prefabs = all.filter(a => a.type === 'prefab'), inside = new Set(), warn = [];
     (function mark(f) { inside.add(f.id); (f.children || []).forEach(mark); })(folder);
     const meta = (path, o) => zip.file(path + '.meta', J(o) + (v3x ? '\n' : ''));
@@ -229,8 +230,8 @@
           zip.file(p + '.anim', J(v3x ? clip3(a, prefabs, get) : clip2(a, prefabs, get)));
           meta(p + '.anim', v3x ? { ver: '2.0.3', importer: 'animation-clip', imported: true, uuid: a.uuid, files: ['.cconb'], subMetas: {}, userData: { name: a.name } } : { ver: '2.1.0', uuid: a.uuid, subMetas: {} });
         } else if (a.type === 'prefab') {
-          zip.file(p + '.prefab', J(v3x ? prefab3(a, get) : prefab2(a, get)));
-          meta(p + '.prefab', v3x ? { ver: '1.1.40', importer: 'prefab', imported: true, uuid: a.uuid, files: ['.json'], subMetas: {}, userData: { syncNodeName: a.name } }
+          zip.file(p + '.prefab', J(v3x ? prefab3(a, get, v37) : prefab2(a, get)));
+          meta(p + '.prefab', v3x ? { ver: v37 ? '1.1.43' : '1.1.40', importer: 'prefab', imported: true, uuid: a.uuid, files: ['.json'], subMetas: {}, userData: { syncNodeName: a.name } }
             : { ver: '1.2.1', uuid: a.uuid, optimizationPolicy: 'AUTO', asyncLoadAssets: false, readonly: false, subMetas: {} });
           const refs = [a.seqAnim, ...a.nodes.flatMap(n => [n.image, n.anim])].filter(Boolean);
           for (const r of refs) { const t = get(r); if (!t) continue; for (const x of (t.type === 'anim' ? [t.id, ...t.frames] : [t.id])) if (!inside.has(x) && get(x)) warn.push(`${a.name} dùng "${get(x).name}" nằm ngoài folder xuất`); }
