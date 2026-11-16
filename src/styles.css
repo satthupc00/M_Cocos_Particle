@@ -114,8 +114,8 @@ kbd{background:var(--chrome);border:1px solid var(--line);border-radius:4px;padd
 .foot span{overflow:hidden;text-overflow:ellipsis}
 .credit{color:#6B707A;font-size:11px;white-space:nowrap;margin-left:auto;flex:0 0 auto}
 .hide{display:none!important}
-.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:var(--chrome);border:1px solid var(--line);border-left:3px solid var(--red);border-radius:6px;padding:8px 14px;z-index:90;box-shadow:0 10px 24px rgba(0,0,0,.45);animation:popin .25s var(--ease-out);max-width:70vw;display:flex;gap:10px;align-items:center}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:80;display:grid;place-items:center;animation:fade .2s}
+.toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:var(--chrome);border:1px solid var(--line);border-left:3px solid var(--red);border-radius:6px;padding:8px 14px;z-index:210;box-shadow:0 10px 24px rgba(0,0,0,.45);animation:popin .25s var(--ease-out);max-width:70vw;display:flex;gap:10px;align-items:center}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:grid;place-items:center;animation:fade .2s}
 @keyframes fade{from{opacity:0}}
 .dlg{background:var(--chrome);border:1px solid var(--line);border-radius:8px;width:420px;max-width:92vw;max-height:86vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.6);animation:dlg .32s var(--ease-spring)}
 @keyframes dlg{from{opacity:0;transform:translateY(10px) scale(.96)}}
@@ -148,3 +148,46 @@ input.num[type=number]:not(:focus){cursor:ew-resize}
 .sec>b.sub{margin:12px 0 6px;color:var(--warn)}.sec>b.sub:first-of-type{margin-top:4px}
 .ptab{margin-bottom:8px}.ptab button{font-weight:600}
 .vbar .btn.dim{opacity:.4;cursor:default}.vbar .btn.dim:hover{border-color:var(--line)}
+/* ---- màn hình khoá + bảng quản lý key ---- */
+#lock-overlay{position:fixed;inset:0;z-index:120;background:var(--chrome);display:grid;place-items:center}
+#lock-overlay[hidden],#admin-modal[hidden],.lock-form[hidden]{display:none}
+.win-drag{position:absolute;left:0;right:150px;top:0;height:58px;-webkit-app-region:drag}
+.lock-card{width:360px;max-width:86vw;display:flex;flex-direction:column;gap:10px;text-align:center;animation:dlg .32s var(--ease-spring)}
+.lock-logo{width:72px;height:72px;margin:0 auto 2px;-webkit-user-drag:none}
+.lock-brand{font-size:18px;font-weight:700}.lock-brand .m{color:var(--red)}.lock-brand .a{color:#fff}
+.lock-msg{font-size:12.5px;line-height:1.5;color:var(--muted);min-height:38px}
+.lock-msg.error,.admin-msg.error{color:#FF6B7A}
+.lock-form{display:flex;flex-direction:column;gap:8px}
+.lock-input{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 10px;color:var(--text);font:inherit;width:100%;min-width:0;user-select:text;text-align:center;letter-spacing:.04em}
+.lock-input:hover{border-color:#5A5F69}.lock-input:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 3px rgba(229,56,59,.18)}
+.lock-form .btn{padding:9px 12px}
+.lock-credit{position:absolute;right:14px;bottom:8px;color:#6B707A;font-size:11px}
+#admin-modal{position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.6);display:grid;place-items:center;animation:fade .2s}
+#admin-modal.busy .admin-card{pointer-events:none;opacity:.75}
+.admin-card{background:var(--chrome);border:1px solid var(--line);border-radius:8px;width:680px;max-width:94vw;max-height:88vh;padding:14px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 50px rgba(0,0,0,.6);animation:dlg .32s var(--ease-spring)}
+.admin-head{display:flex;align-items:center;justify-content:space-between}.admin-title{font-size:15px;font-weight:700}
+.admin-msg{font-size:12px;min-height:16px;color:#7fd6a0}
+.admin-body{display:flex;flex-direction:column;gap:10px;min-height:0}
+.admin-hint{color:var(--muted);font-size:11.5px;line-height:1.5;margin:0}
+.admin-add{display:grid;grid-template-columns:1fr 1fr 64px auto;gap:6px;align-items:end}
+.admin-add .lock-input{text-align:left;letter-spacing:0}
+.admin-add-max{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(--muted)}
+.admin-list{overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:60px;max-height:50vh}
+.admin-row{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.admin-row.revoked .admin-row-info{opacity:.6}.admin-row-info{flex:1;min-width:0}
+.admin-row-name{font-weight:700;display:flex;align-items:center;gap:8px}
+.admin-badge{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:20px;background:#2eb87224;color:var(--green)}.admin-badge.off{background:rgba(255,107,122,.15);color:#FF6B7A}
+.admin-row-meta{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-key-line{display:flex;align-items:center;gap:6px;margin-top:6px}
+.admin-key-text{font:12px Consolas,monospace;background:var(--chrome);border:1px solid var(--line);border-radius:5px;padding:3px 8px;user-select:text}
+.admin-key-missing{color:var(--warn);font-size:11.5px}
+.admin-seat{margin-top:6px}.admin-seat-head,.admin-seat-limit,.admin-seat-dev{display:flex;align-items:center;gap:8px;font-size:11.5px}
+.admin-seat-count{color:var(--muted)}.admin-seat-count.full{color:var(--warn)}
+.admin-seat-box{margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;gap:6px}.admin-seat-box[hidden]{display:none}
+.admin-seat-limit .admin-seat-max{width:60px;padding:4px 6px;text-align:left}
+.admin-seat-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.admin-seat-date{color:var(--muted)}
+.admin-seat-dev.blocked .admin-seat-name{color:var(--muted);text-decoration:line-through}
+.admin-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tbtn{background:none;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;white-space:nowrap;font-size:12px;flex:0 0 auto}
+.tbtn:hover{border-color:var(--red)}.tbtn.danger{color:#FF6B7A}
+.admin-list::-webkit-scrollbar{width:9px}.admin-list::-webkit-scrollbar-thumb{background:#474C55;border-radius:5px}

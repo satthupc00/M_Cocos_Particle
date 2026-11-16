@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
+const { initLicense } = require('./license.js');
 
 let win;
 const stateFile = () => path.join(app.getPath('userData'), 'window.json');
@@ -40,6 +41,6 @@ autoUpdater.on('update-downloaded', () => autoUpdater.quitAndInstall(true, true)
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-  app.whenReady().then(create);
+  app.whenReady().then(() => { initLicense(() => win); create(); });
   app.on('window-all-closed', () => app.quit());
 }

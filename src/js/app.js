@@ -831,6 +831,7 @@
   $('#btnBg').onclick = () => { if (!refAsset()) return; S.ref.hidden = !S.ref.hidden; dirty(); renderRef(); };
   const typing = e => /INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
   document.addEventListener('keydown', e => {
+    if (document.querySelector('#lock-overlay:not([hidden]),#admin-modal:not([hidden])')) return;
     if (e.code === 'Space' && !typing(e)) { space = true; e.preventDefault(); if (!e.repeat) spaceT = performance.now(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); return exportDlg(); }
     if (e.ctrlKey && !$('.modal')) { const k = e.key.toLowerCase();
@@ -912,6 +913,7 @@
     window.addEventListener('resize', renderTabs);
     requestAnimationFrame(t => { last = t; tick(t); });
     setTimeout(() => checkUpdate(false), 1200);
+    M.ui = { confirm: (title, msg, ok) => confirmDlg(esc(title), esc(msg), esc(ok || 'OK')) };
     M.debug = { S: () => S, all, byId, exportBuild: (id, v) => M.exporter.build(byId(id), v, all()), makeSequence, cur, projectOf, importZip, saveScene, loadScene, scenes, renderAll, dirty, selNode, scene: scenePfs, hist: () => [hist.length, redoS.length] };
   }
   init();
