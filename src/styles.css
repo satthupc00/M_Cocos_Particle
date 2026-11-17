@@ -200,3 +200,14 @@ input.num[type=number]:not(:focus){cursor:ew-resize}
 .pgrid button:hover{border-color:var(--red);background:var(--selected-bg)}
 .pgrid i{width:30px;height:30px;border-radius:5px;background:#17191d;display:grid;place-items:center;color:#5AA9FF}.pgrid i svg{width:18px;height:18px}
 .pgrid span,.pgrid small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}.pgrid small{color:var(--muted);font-size:9.5px}
+/* ---- màn hình bắt đầu ---- */
+#start{position:fixed;inset:0;z-index:110;background:var(--chrome);display:grid;place-items:center;animation:fade .2s}
+.start-box{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:92vw;animation:dlg .32s var(--ease-spring)}
+.start-box p{margin:0;color:var(--muted)}
+.start-cards{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+.start-card{width:220px;min-height:150px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.start-card:hover,.start-card:focus-visible{border-color:var(--red);background:var(--selected-bg);box-shadow:0 6px 16px rgba(229,56,59,.25)}
+.start-card.main{border-color:var(--red)}
+.start-card i{width:42px;height:42px;border-radius:8px;background:#17191d;display:grid;place-items:center;color:var(--warn)}.start-card i svg{width:22px;height:22px}
+.start-card b{font-size:14px}.start-card span{color:var(--muted);font-size:11.5px;line-height:1.4}
+.start-warn{font-size:11.5px;color:var(--warn)!important;margin-top:4px!important}

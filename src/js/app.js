@@ -871,7 +871,7 @@
   $('#btnBg').onclick = () => { if (!refAsset()) return; S.ref.hidden = !S.ref.hidden; dirty(); renderRef(); };
   const typing = e => /INPUT|SELECT|TEXTAREA/.test(e.target.tagName);
   document.addEventListener('keydown', e => {
-    if (document.querySelector('#lock-overlay:not([hidden]),#admin-modal:not([hidden])')) return;
+    if (!S || document.querySelector('#start,#lock-overlay:not([hidden]),#admin-modal:not([hidden])')) return;
     if (e.code === 'Space' && !typing(e)) { space = true; e.preventDefault(); if (!e.repeat) spaceT = performance.now(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'e') { e.preventDefault(); return exportDlg(); }
     if (e.ctrlKey && !$('.modal')) { const k = e.key.toLowerCase();
@@ -931,29 +931,60 @@
     modal(`${dlgHead("What's new")}<div class="bd"><p>v${esc(WN.version)} · ${fmtDate(WN.date)}</p>${grp('Mới', WN.new)}${grp('Cải thiện', WN.improved)}${grp('Sửa lỗi', WN.fixed)}${newVer ? `<p>Có bản mới v${esc(newVer)}</p>` : ''}</div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`);
   }
   $('#btnSet').onclick = () => modal(`${dlgHead('Cài đặt')}<div class="bd"><p>Phiên bản</p><div class="verrow"><b>v${esc((api && api.version) || WN.version)}</b><button class="btn" id="sWN">${IC.spark} What's new</button><button class="btn" id="sUp">Kiểm tra cập nhật</button></div>
-    <p>Project</p><div class="verrow"><button class="btn" id="sReset">Tạo lại project mẫu</button></div><p>Mọi thay đổi được lưu tự động trên máy này.</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`,
+    <p>Project</p><div class="verrow"><button class="btn" id="sStart" title="Tạo file rỗng hoặc mở lại file mẫu">Màn hình bắt đầu…</button></div><p>Mọi thay đổi được lưu tự động trên máy này.</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`,
     (m, close) => { m.querySelector('#sWN').onclick = () => { close(); whatsNew(); }; m.querySelector('#sUp').onclick = () => { close(); checkUpdate(true); };
-      m.querySelector('#sReset').onclick = async () => { close(); if (await confirmDlg('Tạo lại project mẫu', 'Xoá toàn bộ assets hiện tại và tạo lại project mẫu ban đầu?', 'Tạo lại')) { await bootstrap(); restart(); fitAll(); renderAll(); dirty(); } }; });
+      m.querySelector('#sStart').onclick = async () => { close(); commit(); const k = await startScreen(true); if (k !== 'continue') { await applyStart(k, S); toast(k === 'empty' ? 'Đã tạo project rỗng' : 'Đã mở project mẫu'); } }; });
 
   // ================= khởi động =================
   function renderPathBtn() { const b = $('#btnPath'); b.classList.toggle('hide', !scenePfs().some(p => p.kind === 'projectile')); b.classList.toggle('on', !S.hidePath); b.textContent = S.hidePath ? 'Hiện đường bay' : 'Ẩn đường bay'; }
   function renderAll() { undoBtns(); applyLayout(); renderPathBtn(); renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
   function fitAll() { const t = S.tab; for (const k of ['particle', 'projectile']) { S.tab = k; fit(); } S.tab = t; }
-  async function init() {
-    if (api) document.documentElement.classList.add('electron');
-    const saved = await load();
-    if (saved) { try { S = JSON.parse(saved); if (!S.root || !S.canvas) throw 0; } catch (e) { S = null; } }
-    if (!S) await bootstrap();
+  // project trống: chưa có folder hay prefab nào
+  function emptyProject() {
+    S = { root: { id: 'root', type: 'folder', name: 'assets', children: [] }, canvas: { w: 960, h: 640 }, tab: 'particle', scene: { particle: [], projectile: [] }, sel: null, folder: 'root', ver: '213', bg: 0, ptab: 'm', ref: null };
+    idx = null;
+  }
+  // sau khi S đã có nội dung: chuẩn hoá, nạp ảnh, vẽ lại toàn bộ
+  async function prepare() {
     idx = null;
     if (S.ref && S.ref.data) { const d = S.ref.data, a = await mkImage(sysFolder('Backgrounds'), 'Background', d, /^data:image\/jpe?g/.test(d) ? 'jpg' : 'png'); S.ref.img = a.id; delete S.ref.data; delete S.ref.w; delete S.ref.h; }
     normAll(); for (const k of ['particle', 'projectile']) S.scene[k] = S.scene[k].slice(0, 1); if (!S.sel) select(scenePfs()[0] || null);
-    R = new M.Renderer($('#gl'));
     await Promise.all(all().filter(a => a.type === 'image').map(a => { const i = M.imgOf(a); return i.complete ? 0 : new Promise(ok => { i.onload = i.onerror = ok; }); }));
-    fitAll(); restart(); setTool('move'); base = snap(); renderAll();
+    fitAll(); restart(); hist = []; redoS = []; base = snap(); renderAll();
+  }
+  // màn hình bắt đầu: tạo file rỗng / mở file mẫu (/ tiếp tục project đang làm nếu có)
+  function startScreen(hasSaved) {
+    return new Promise(ok => {
+      const card = (k, title, desc, main) => `<button class="start-card ${main ? 'main' : ''}" data-start="${k}"><i>${{ empty: IC.plus, sample: IC.spark, continue: IC.anim }[k]}</i><b>${title}</b><span>${desc}</span></button>`;
+      const o = document.createElement('div'); o.id = 'start';
+      o.innerHTML = `<div class="start-box"><img class="lock-logo" src="icon.png" alt=""><div class="lock-brand"><span class="m">M</span><span class="a"> Cocos Particle</span></div><p>Bạn muốn bắt đầu thế nào?</p>
+        <div class="start-cards">${hasSaved ? card('continue', 'Tiếp tục project đang làm', 'Mở lại đúng những gì bạn làm lần trước', true) : ''}${card('empty', 'Tạo file rỗng', 'Project trống: tự tạo prefab mới hoặc kéo file zip project vào')}${card('sample', 'Mở file mẫu', 'Có sẵn Coin_Burst (chuỗi hình đồng xu), 1 Projectile và ảnh nền')}</div>
+        ${hasSaved ? '<p class="start-warn">Chọn "Tạo file rỗng" hoặc "Mở file mẫu" sẽ thay thế project đang làm.</p>' : ''}</div><div class="lock-credit">Created by Mondiro</div><div class="win-drag"></div>`;
+      document.body.append(o);
+      o.addEventListener('click', async e => { const b = e.target.closest('[data-start]'); if (!b) return; const k = b.dataset.start;
+        if (hasSaved && k !== 'continue' && !(await confirmDlg(k === 'empty' ? 'Tạo file rỗng' : 'Mở file mẫu', 'Project đang làm sẽ bị xoá và thay bằng ' + (k === 'empty' ? 'project trống' : 'project mẫu') + '. Tiếp tục?', 'Thay thế'))) return;
+        o.remove(); ok(k); });
+      const f = o.querySelector('[data-start]'); if (f) f.focus();
+    });
+  }
+  async function applyStart(choice, savedS) {
+    if (choice === 'continue' && savedS) S = savedS;
+    else { const keep = savedS || S || {}; if (choice === 'empty') emptyProject(); else await bootstrap();
+      for (const k of ['ver', 'layout', 'ptab']) if (keep[k] !== undefined) S[k] = keep[k]; }
+    await prepare(); if (choice !== 'continue') save();
+  }
+  async function init() {
+    if (api) document.documentElement.classList.add('electron');
+    M.ui = { confirm: (title, msg, ok) => confirmDlg(esc(title), esc(msg), esc(ok || 'OK')) };
+    R = new M.Renderer($('#gl'));
+    const saved = await load(); let savedS = null;
+    if (saved) { try { savedS = JSON.parse(saved); if (!savedS.root || !savedS.canvas) throw 0; } catch (e) { savedS = null; } }
+    const force = { '#sample': 'sample', '#empty': 'empty', '#continue': 'continue' }[location.hash];   // dùng khi test
+    await applyStart(force || await startScreen(!!savedS), savedS);
+    setTool('move');
     window.addEventListener('resize', renderTabs);
     requestAnimationFrame(t => { last = t; tick(t); });
     setTimeout(() => checkUpdate(false), 1200);
-    M.ui = { confirm: (title, msg, ok) => confirmDlg(esc(title), esc(msg), esc(ok || 'OK')) };
     M.debug = { S: () => S, all, byId, exportBuild: (id, v) => M.exporter.build(byId(id), v, all()), makeSequence, cur, projectOf, importZip, saveScene, loadScene, scenes, renderAll, dirty, selNode, scene: scenePfs, hist: () => [hist.length, redoS.length] };
   }
   init();

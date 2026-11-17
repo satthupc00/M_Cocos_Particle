@@ -1,9 +1,10 @@
 {
-  "version": "1.9.1",
-  "date": "2026-11-16",
-  "new": [],
-  "improved": [
-    "Thống nhất tên gọi: mọi nơi đều dùng Position, Rotation, Scale cho vị trí, góc xoay và tỉ lệ của node"
+  "version": "1.10.0",
+  "date": "2026-11-17",
+  "new": [
+    "Màn hình bắt đầu khi mở app: Tạo file rỗng hoặc Mở file mẫu (và Tiếp tục project đang làm nếu có)",
+    "Mở lại màn hình này bất cứ lúc nào trong Cài đặt"
   ],
+  "improved": [],
   "fixed": []
 }
