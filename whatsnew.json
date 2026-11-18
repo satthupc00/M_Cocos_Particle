@@ -1,10 +1,11 @@
 {
-  "version": "1.10.0",
-  "date": "2026-11-17",
+  "version": "1.11.0",
+  "date": "2026-11-18",
   "new": [
-    "Màn hình bắt đầu khi mở app: Tạo file rỗng hoặc Mở file mẫu (và Tiếp tục project đang làm nếu có)",
-    "Mở lại màn hình này bất cứ lúc nào trong Cài đặt"
+    "Nhập được mọi file zip có file Cocos (prefab, animation clip, ảnh), không cần đúng cấu trúc folder Animation / Images / Prefabs"
   ],
-  "improved": [],
+  "improved": [
+    "Cây folder trong zip được giữ nguyên khi nhập; chỉ project tạo mới trong app mới tự có 3 folder chuẩn"
+  ],
   "fixed": []
 }

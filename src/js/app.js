@@ -33,7 +33,10 @@
   const mkFolder = (parent, name) => add(parent, { type: 'folder', name, children: [] });
   function subFolder(project, kind) {
     const re = { Images: /images?$/i, Animations: /anim(ation)?s?$/i, Prefabs: /prefabs?$/i }[kind];
-    return project.children.find(c => c.type === 'folder' && re.test(c.name)) || mkFolder(project, kind);
+    const hit = project.children.find(c => c.type === 'folder' && re.test(c.name)); if (hit) return hit;
+    // project nhập từ zip tự do (loose): không tự tạo thêm folder, dùng folder sẵn có hoặc ngay folder gốc
+    if (project.loose) { let deep = null; walk(c => { if (!deep && c !== project && c.type === 'folder' && re.test(c.name)) deep = c; }, project); return deep || project; }
+    return mkFolder(project, kind);
   }
   // folder hệ thống (Scenes, Backgrounds): không xuất vào zip
   const sysFolder = name => S.root.children.find(c => c.type === 'folder' && c.sys === name) || Object.assign(mkFolder(S.root, name), { sys: name });
@@ -448,9 +451,9 @@
           if (a.kind === 'particle') { const e = emitters(a)[0]; a.mode = e && e.ps.posVar.x > 100 ? 'fall' : 'burst'; a.play = e && e.ps.duration !== -1 ? 'once' : 'loop'; } else a.proj = defProj(); }, t); }
       for (const a of all().filter(x => x.type === 'prefab' && x._needImg)) { delete a._needImg; const pr = projectOf(a); if (!pr) continue; const im = await builtinImg(pr, 'Circle'); a.nodes.forEach(n => { if (!n.image) n.image = im.id; }); }
       t0.remove(); dirty(); if (first) { S.folder = parentOf(first.id).id; openPrefab(first); } else renderAll();
-      toast(`Đã nhập ${res.length} project từ "${esc(file.name)}"` + (warn.length ? `<br><span style="color:var(--warn)">${warn.slice(0, 3).map(esc).join('<br>')}</span>` : ''), warn.length ? 7000 : 3000);
+      toast(`Đã nhập ${res.length} folder từ "${esc(file.name)}"` + (warn.length ? `<br><span style="color:var(--warn)">${warn.slice(0, 3).map(esc).join('<br>')}</span>` : ''), warn.length ? 7000 : 3000);
     } catch (err) { t0.remove(); if (!err.user) console.error(err);
-      modal(`${dlgHead('Không nhập được file zip')}<div class="bd"><p style="white-space:pre-wrap;color:var(--text)">${esc(err.user ? err.message : 'File zip không đúng định dạng project Cocos (' + err.message + ')')}</p><p>File zip cần có folder Images, Prefabs (và Animation nếu dùng chuỗi hình) cùng các file .meta đi kèm, giống file do app này hoặc Cocos xuất ra.</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`); }
+      modal(`${dlgHead('Không nhập được file zip')}<div class="bd"><p style="white-space:pre-wrap;color:var(--text)">${esc(err.user ? err.message : 'File zip không đúng định dạng project Cocos (' + err.message + ')')}</p><p>App nhận mọi file zip có file Cocos bên trong (prefab, animation clip, ảnh), không cần đúng cấu trúc folder.</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`); }
   }
   // ---- scene: chỉ lưu đường dẫn tới prefab và ảnh nền ----
   const scenes = () => { const f = S.root.children.find(c => c.sys === 'Scenes'); return f ? f.children.filter(c => c.type === 'scene') : []; };
