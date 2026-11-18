@@ -1,4 +1,4 @@
-// Nhập file Cocos (2.x hoặc 3.x) từ 1 file zip bất kỳ: không bắt buộc cấu trúc folder; file thiếu .meta thì tự tạo mã mới
+// Nhập file Cocos (2.x hoặc 3.x) từ 1 file zip hoặc 1 folder kéo vào: không bắt buộc cấu trúc folder, nhưng mọi file phải có .meta đi kèm
 (function (M) {
   const RE = { anim: /anim(ation)?s?$/i, img: /images?$/i, pf: /prefabs?$/i };
   const IMG = /\.(png|jpe?g|webp)$/i, ASSET = /\.(png|jpe?g|webp|anim|prefab)$/i;
@@ -8,9 +8,15 @@
   const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
   // h: { uid, uuid4, defPS, loadImg }
-  async function parse(file, h) {
-    let zip; try { zip = await JSZip.loadAsync(file); } catch (e) { fail('Không đọc được file zip này (file hỏng hoặc không phải zip).'); }
-    const files = Object.keys(zip.files).filter(p => !zip.files[p].dir && !/(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db)/.test(p));
+  // src: File zip, hoặc { name, entries: [{ path, file }] } cho folder kéo vào
+  async function parse(src, h) {
+    let files, has, readS, readB; const isDir = !!src.entries, what = isDir ? 'Folder' : 'File zip', srcName = isDir ? src.name : src.name.replace(/\.zip$/i, '');
+    const junk = p => /(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db)/.test(p);
+    if (isDir) { const map = new Map(src.entries.map(e => [e.path, e.file])); files = [...map.keys()].filter(p => !junk(p)); has = p => map.has(p); readS = p => map.get(p).text(); readB = async p => new Uint8Array(await map.get(p).arrayBuffer()); }
+    else {
+      let zip; try { zip = await JSZip.loadAsync(src); } catch (e) { fail('Không đọc được file zip này (file hỏng hoặc không phải zip).'); }
+      files = Object.keys(zip.files).filter(p => !zip.files[p].dir && !junk(p)); has = p => !!zip.file(p); readS = p => zip.file(p).async('string'); readB = p => zip.file(p).async('uint8array');
+    }
     const dirs = new Set(['']); files.forEach(p => { const a = p.split('/'); for (let i = 1; i < a.length; i++) dirs.add(a.slice(0, i).join('/') + '/'); });
     const kids = d => [...new Set([...dirs].filter(x => x !== d && x.startsWith(d) && x.slice(d.length).split('/').length === 2).map(x => x.slice(d.length, -1)))];
     // folder Animation không bắt buộc: prefab không dùng chuỗi hình thì Cocos không tạo folder này
@@ -18,18 +24,20 @@
     let roots = [...dirs].filter(d => { const k = kids(d); return k.some(n => RE.img.test(n)) && k.some(n => RE.pf.test(n)); }), loose = false;
     if (roots.length && files.some(p => ASSET.test(p) && !roots.some(r => p.startsWith(r)))) roots = [];
     if (!roots.length) {
-      if (!files.some(p => ASSET.test(p))) fail('File zip này không có file Cocos nào (prefab, animation clip hoặc ảnh).');
+      if (!files.some(p => ASSET.test(p))) fail(what + ' này không có file Cocos nào (prefab, animation clip hoặc ảnh).');
       const tops = new Set(files.filter(p => !p.endsWith('.meta')).map(p => p.includes('/') ? p.split('/')[0] : ''));
       roots = [tops.size === 1 && !tops.has('') ? [...tops][0] + '/' : '']; loose = true;
     }
-    const text = p => zip.file(p).async('string');
+    const text = readS;
     const metaCache = new Map();
-    const meta = async p => { if (metaCache.has(p)) return metaCache.get(p); let m = null; const f = zip.file(p + '.meta'); if (f) { try { m = JSON.parse(await f.async('string')); if (!m || typeof m.uuid !== 'string' || !m.uuid) m = null; } catch (e) { m = null; } } metaCache.set(p, m); return m; };
+    const meta = async p => { if (metaCache.has(p)) return metaCache.get(p); let m = null; if (has(p + '.meta')) { try { m = JSON.parse(await readS(p + '.meta')); if (!m || typeof m.uuid !== 'string' || !m.uuid) m = null; } catch (e) { m = null; } } metaCache.set(p, m); return m; };
 
     const out = [];
     for (const D of roots) {
-      const mine = files.filter(p => p.startsWith(D) && !p.endsWith('.meta')); let noMeta = 0;
-      const mu = async p => { const m = await meta(p); if (m) return m; noMeta++; return { uuid: h.uuid4() }; };
+      const mine = files.filter(p => p.startsWith(D) && !p.endsWith('.meta')); 
+      const mu = meta, lost = [];
+      for (const p of mine) if (ASSET.test(p) && !(await meta(p))) lost.push(p.slice(D.length));
+      if (lost.length) fail(`${what} thiếu file .meta (hoặc file .meta bị hỏng) cho ${lost.length} file:\n` + lost.slice(0, 8).join('\n') + (lost.length > 8 ? `\n… và ${lost.length - 8} file khác` : '') + '\n\nFile .meta do Cocos tạo ra cạnh mỗi file. Hãy lấy cả folder từ trong project Cocos (kèm các file .meta).');
       const sf = new Map(), clips = new Map(), warn = [], offsOf = new Map();
 
       // 1) cây folder + ảnh
@@ -37,14 +45,14 @@
         const m = await meta(d.slice(0, -1)), node = { id: h.uid(), type: 'folder', name, uuid: (m && m.uuid) || h.uuid4(), children: [] };
         for (const n of kids(d).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))) node.children.push(await build(d + n + '/', n));
         for (const p of mine.filter(p => p.startsWith(d) && !p.slice(d.length).includes('/') && IMG.test(p)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))) {
-          const m = await mu(p), fn = p.slice(d.length), ext = fn.match(IMG)[1].toLowerCase(), data = `data:${MIME[ext]};base64,` + b64(await zip.file(p).async('uint8array'));
+          const m = await mu(p), fn = p.slice(d.length), ext = fn.match(IMG)[1].toLowerCase(), data = `data:${MIME[ext]};base64,` + b64(await readB(p));
           let img; try { img = await h.loadImg(data); } catch (e) { fail('Không đọc được ảnh: ' + fn); }
           const subs = Object.values(m.subMetas || {}), a = { id: h.uid(), type: 'image', name: fn.replace(IMG, ''), ext, data, w: img.naturalWidth, h: img.naturalHeight, trim: { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight }, uuid: m.uuid, sub: (!m.importer && subs[0] && subs[0].uuid) || h.uuid4() };
           node.children.push(a); sf.set(m.uuid, a); sf.set(a.sub, a); sf.set(m.uuid + '@f9941', a);
         }
         node._dir = d; return node;
       };
-      const name = D ? D.slice(0, -1).split('/').pop() : file.name.replace(/\.zip$/i, '');
+      const name = D ? D.slice(0, -1).split('/').pop() : srcName;
       const tree = await build(D, name);
       const folderOf = d => { let f = tree; if (d === D) return f; for (const seg of d.slice(D.length, -1).split('/')) f = f.children.find(c => c.type === 'folder' && c.name === seg); return f; };
       const dirOf = p => p.slice(0, p.lastIndexOf('/') + 1);
@@ -87,7 +95,7 @@
             s.positionType = ps._positionType !== undefined ? ps._positionType : ps.positionType || 0;
             ['startColor', 'startColorVar', 'endColor', 'endColorVar'].forEach(k => s[k] = col(k)); ['sourcePos', 'posVar', 'gravity'].forEach(k => s[k] = v2(k));
             s.srcBlend = bl(ps._srcBlendFactor); s.dstBlend = bl(ps._dstBlendFactor);
-            const img = ref(ps._spriteFrame); if (!img) warn.push(`${pname}: emitter "${c._name}" trỏ tới 1 ảnh không có trong zip nên tạm dùng chấm tròn mặc định`);
+            const img = ref(ps._spriteFrame); if (!img) warn.push(`${pname}: emitter "${c._name}" trỏ tới 1 ảnh không có trong file nhập nên tạm dùng chấm tròn mặc định`);
           pf.nodes.push(Object.assign({ id: h.uid(), type: 'emitter', name: c._name, image: img ? img.id : null, ps: s }, xf(c)));
           } else if (sp) {
             const is3 = !!c._lpos, bl = v => (is3 ? BF3[v] : Object.keys(M.GLB).find(k => M.GLB[k] === v)) || 'SRC_ALPHA', img = ref(sp._spriteFrame), an = clipOf(c);
@@ -98,7 +106,7 @@
         folderOf(dirOf(p)).children.push(pf);
       }
       (function clean(f) { delete f._dir; f.children.forEach(c => c.type === 'folder' && clean(c)); })(tree);
-      if (noMeta) warn.unshift(`${noMeta} file không có .meta nên app tự tạo mã mới; ảnh của các file đó có thể không gắn đúng vào prefab`);
+
       if (loose) tree.loose = true;
       out.push({ tree, warn });
     }

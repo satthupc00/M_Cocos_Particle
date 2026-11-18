@@ -1,11 +1,15 @@
 {
-  "version": "1.11.0",
+  "version": "1.12.0",
   "date": "2026-11-18",
   "new": [
-    "Nhập được mọi file zip có file Cocos (prefab, animation clip, ảnh), không cần đúng cấu trúc folder Animation / Images / Prefabs"
+    "Viewport vẽ 2 khung canvas cố định: 1280 × 720 (vàng) và 2024 × 1200 (đỏ)",
+    "Kéo cả folder Cocos vào app để nhập (như kéo file zip)"
   ],
   "improved": [
-    "Cây folder trong zip được giữ nguyên khi nhập; chỉ project tạo mới trong app mới tự có 3 folder chuẩn"
+    "Zip và folder nhập vào phải có file .meta cho mỗi file; thiếu thì app báo rõ file nào",
+    "App không còn tự lưu project và bỏ nút Scene: muốn giữ thì Xuất zip; khi thoát app sẽ hỏi lại nếu còn thay đổi chưa xuất",
+    "Nút Cài đặt đổi sang hình bánh răng",
+    "Đổi tên 2 bảng khi tạo prefab mới"
   ],
   "fixed": []
 }

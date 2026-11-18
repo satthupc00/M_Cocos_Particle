@@ -101,7 +101,7 @@
   function applyMode(pf, nodes = emitters(pf)) {
     for (const n of nodes) { const s = n.ps; s.emitterMode = 0; s.speed = Math.abs(s.speed) || 600; n.x = 0;
       if (pf.mode === 'burst') { n.y = 0; s.posVar = { x: 0, y: 0 }; s.angle = 90; s.angleVar = 180; s.gravity = { x: 0, y: -500 }; }
-      else { n.y = Math.round(S.canvas.h / 2 + 80); s.posVar = { x: Math.round(S.canvas.w / 2), y: 0 }; s.angle = -90; s.angleVar = 8; s.gravity = { x: 0, y: -150 }; s.life = r1((S.canvas.h + 220) / s.speed); } }
+      else { n.y = Math.round(BIG.h / 2 + 80); s.posVar = { x: Math.round(BIG.w / 2), y: 0 }; s.angle = -90; s.angleVar = 8; s.gravity = { x: 0, y: -150 }; s.life = r1((BIG.h + 220) / s.speed); } }
     applyPlay(pf, nodes);
   }
   async function newParticle(project, name, opt = {}) {
@@ -145,9 +145,10 @@
   }
   // nền mẫu tự vẽ (khung máy quay số đơn giản) để ướm thử hiệu ứng
   function sampleBg() {
-    const W = 960, H = 640, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    const W = 1280, H = 720, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
     const bg = g.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, 620); bg.addColorStop(0, '#2647B0'); bg.addColorStop(1, '#0B1238'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
     g.save(); g.translate(W / 2, H / 2); g.fillStyle = 'rgba(120,170,255,.10)'; for (let i = 0; i < 18; i++) { g.rotate(Math.PI / 9); g.beginPath(); g.moveTo(0, 0); g.lineTo(-70, -800); g.lineTo(70, -800); g.fill(); } g.restore();
+    g.translate(100, 0); g.scale(1.125, 1.125);   // khung vẽ theo lưới 960×640, đặt giữa nền 1280×720
     const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
     const fx = 150, fy = 110, fw = 660, fh = 360, gold = g.createLinearGradient(0, fy, 0, fy + fh); gold.addColorStop(0, '#FFD84D'); gold.addColorStop(1, '#F07A1A');
     rr(fx - 14, fy - 14, fw + 28, fh + 28, 34); g.fillStyle = gold; g.fill(); rr(fx, fy, fw, fh, 22); g.fillStyle = '#121A4A'; g.fill();
@@ -172,7 +173,9 @@
 
   // ================= lưu tự động =================
   const DB = () => new Promise((ok, no) => { const r = indexedDB.open('m-cocos-particle', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
-  async function load() { try { const db = await DB(); return await new Promise(ok => { const r = db.transaction('kv').objectStore('kv').get('state'); r.onsuccess = () => ok(r.result || null); r.onerror = () => ok(null); }); } catch (e) { return null; } }
+  // App không còn tự lưu project: chỉ nhớ vài tuỳ chọn giao diện. Dữ liệu lưu của bản cũ được xoá đi.
+  const PREF = 'mcp-prefs';
+  function loadPrefs() { try { indexedDB.deleteDatabase('m-cocos-particle'); } catch (e) { } try { return JSON.parse(localStorage.getItem(PREF)) || {}; } catch (e) { return {}; } }
   let saveT;
   // mọi prefab / node đều có vị trí, góc xoay, tỉ lệ
   const xf = o => { if (typeof o.x !== 'number') o.x = 0; if (typeof o.y !== 'number') o.y = 0; if (typeof o.rot !== 'number') o.rot = 0; if (!(o.sx > 0)) o.sx = o.scale > 0 ? o.scale : 1; if (!(o.sy > 0)) o.sy = o.scale > 0 ? o.scale : 1; delete o.scale; };
@@ -181,12 +184,12 @@
     if (!S.scene) S.scene = { particle: S.open && S.open.particle ? [S.open.particle] : [], projectile: S.open && S.open.projectile ? [S.open.projectile] : [] };
     for (const k of ['particle', 'projectile']) S.scene[k] = (S.scene[k] || []).filter(id => { const a = byId(id); return a && a.type === 'prefab'; });
     if (S.sel && typeof S.sel !== 'object') S.sel = null; delete S.open; }
-  function save() { clearTimeout(saveT); saveT = setTimeout(async () => { try { const db = await DB(); db.transaction('kv', 'readwrite').objectStore('kv').put(JSON.stringify(S), 'state'); } catch (e) { } }, 250); }
+  function save() { try { localStorage.setItem(PREF, JSON.stringify({ ver: S.ver, layout: S.layout, ptab: S.ptab })); } catch (e) { } }
   // ---- undo / redo (10 bước) : chỉ lưu phần nội dung, ảnh được giữ riêng để nhẹ ----
   const DOC = ['root', 'canvas', 'scene', 'ref'], blobKey = new Map(), blobVal = new Map(), HMAX = 10;
   const snap = () => JSON.stringify(DOC.map(k => S[k] === undefined ? null : S[k]), (k, v) => { if (k !== 'data' || typeof v !== 'string') return v; let t = blobKey.get(v); if (!t) { t = '\u0001' + blobKey.size; blobKey.set(v, t); blobVal.set(t, v); } return t; });
   let hist = [], redoS = [], base = null, histT;
-  function commit() { clearTimeout(histT); if (base === null) return; const s = snap(); if (s === base) return; hist.push(base); if (hist.length > HMAX) hist.shift(); redoS = []; base = s; undoBtns(); }
+  function commit() { clearTimeout(histT); if (base === null) return; const s = snap(); if (s === base) return; hist.push(base); if (hist.length > HMAX) hist.shift(); redoS = []; base = s; undoBtns(); if (api && api.setDirty) api.setDirty(true); }
   function restore(s) { const a = JSON.parse(s, (k, v) => k === 'data' && typeof v === 'string' && blobVal.has(v) ? blobVal.get(v) : v); DOC.forEach((k, i) => S[k] = a[i]); idx = null;
     if (!byId(S.folder)) S.folder = 'root'; if (S.sel && !scenePfs().some(p => p.id === S.sel.pf)) select(scenePfs()[0] || null); restart(); renderAll(); save(); undoBtns(); }
   function undo() { commit(); if (!hist.length) return toast('Không còn bước nào để hoàn tác'); redoS.push(base); base = hist.pop(); restore(base); }
@@ -202,6 +205,8 @@
   const select = (pf, node) => { S.sel = pf ? { pf: pf.id, node: node ? node.id : null } : null; };
   const views = { particle: { x: 0, y: 0, z: 1 }, projectile: { x: 0, y: 0, z: 1 } };
   const view = () => views[S.tab];
+  // 2 khung canvas cố định: nhỏ (vàng) và lớn (đỏ)
+  const CANV = [{ w: 1280, h: 720, c: '#F2B84B' }, { w: 2024, h: 1200, c: '#E5383B' }], BIG = CANV[1];
   const BGS = [[.169, .176, .192], [0, 0, 0], [.45, .45, .47], [.09, .22, .16]];
   let R, playing = true, last = performance.now(), tool = 'move';
   const RT = new Map();
@@ -280,9 +285,8 @@
     for (let y = oy % (step * v.z); y < h; y += step * v.z) { g.moveTo(0, Math.round(y) + .5); g.lineTo(w, Math.round(y) + .5); }
     g.stroke();
     g.strokeStyle = 'rgba(255,255,255,.16)'; g.beginPath(); g.moveTo(ox, 0); g.lineTo(ox, h); g.moveTo(0, oy); g.lineTo(w, oy); g.stroke();
-    const cw = S.canvas.w * v.z, ch = S.canvas.h * v.z;
-    g.strokeStyle = 'rgba(229,56,59,.9)'; g.lineWidth = 1.5; g.strokeRect(ox - cw / 2, oy - ch / 2, cw, ch);
-    g.fillStyle = '#8D929C'; g.font = '11px "Segoe UI",sans-serif'; g.fillText(`Canvas ${S.canvas.w} × ${S.canvas.h}`, ox - cw / 2 + 4, oy - ch / 2 - 6);
+    g.font = '11px "Segoe UI",sans-serif'; g.lineWidth = 1.5;
+    for (const c of CANV) { const cw = c.w * v.z, ch = c.h * v.z; g.strokeStyle = c.c; g.strokeRect(ox - cw / 2, oy - ch / 2, cw, ch); g.fillStyle = c.c; g.fillText(`${c.w} × ${c.h}`, ox - cw / 2 + 4, oy - ch / 2 - 6); }
     const pf = cur(); if (!pf) return;
     if (!S.hidePath) for (const q of scenePfs()) {
       if (q.kind !== 'projectile' || q.hidden || q.proj.preset === 'still') continue;
@@ -336,7 +340,7 @@
     if (!S.ref) return pickRef(); const r = e.currentTarget.getBoundingClientRect();
     ctxMenu(r.left, r.bottom + 4, [[S.ref.locked ? 'Chỉnh lại vị trí ảnh nền' : 'Khoá ảnh nền (Apply)', () => { S.ref.locked = !S.ref.locked; dirty(); renderRef(); }], ['Đổi ảnh khác…', pickRef], ['Gỡ ảnh nền', () => { S.ref = null; dirty(); renderRef(); }]]);
   }
-  function fit() { const v = view(); v.z = Math.max(.05, Math.min((viewEl.clientWidth - 80) / S.canvas.w, (viewEl.clientHeight - 110) / S.canvas.h)); v.x = 0; v.y = 12; }
+  function fit() { const v = view(); v.z = Math.max(.05, Math.min((viewEl.clientWidth - 80) / BIG.w, (viewEl.clientHeight - 110) / BIG.h)); v.x = 0; v.y = 12; }
   function setTool(t) { tool = t; $$('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); }
 
   // chuột trong viewport
@@ -406,14 +410,14 @@
 
   // ================= thao tác asset =================
   const clean = s => s.replace(/[\\/:*?"<>|]/g, '').trim();
-  async function targetProject(folder, askName) {
+  async function targetProject(folder, askName, askTitle) {
     let p = folder && folder !== S.root ? projectOf(folder) : null;
-    if (!p) { const n = await ask('Folder hiệu ứng mới', 'Tên folder (sẽ có sẵn Animations, Images, Prefabs bên trong)', askName, 'Tạo'); if (!n) return null; p = mkFolder(S.root, clean(n)); ['Animations', 'Images', 'Prefabs'].forEach(k => subFolder(p, k)); }
+    if (!p) { const n = await ask(askTitle || 'Đặt tên folder mới', 'Tên folder (sẽ có sẵn Animations, Images, Prefabs bên trong)', askName, 'Tạo'); if (!n) return null; p = mkFolder(S.root, clean(n)); ['Animations', 'Images', 'Prefabs'].forEach(k => subFolder(p, k)); }
     return p;
   }
   async function createPrefab(kind, folder) {
-    const p = await targetProject(folder, kind === 'particle' ? 'Particle_FX' : 'Projectile_FX'); if (!p) return;
-    const n = await ask(kind === 'particle' ? 'Particle prefab mới' : 'Projectile prefab mới', 'Tên prefab', kind === 'particle' ? 'Particle' : 'Projectile', 'Tạo'); if (!n) return;
+    const p = await targetProject(folder, kind === 'particle' ? 'Particle_FX' : 'Projectile_FX', kind === 'particle' ? 'Đặt tên Particle mới' : 'Đặt tên Projectile mới'); if (!p) return;
+    const n = await ask('Tên Prefab', 'Tên prefab', kind === 'particle' ? 'Particle' : 'Projectile', 'Tạo'); if (!n) return;
     const pf = kind === 'particle' ? await newParticle(p, clean(n)) : await newProjectile(p, clean(n));
     S.folder = parentOf(pf.id).id; openPrefab(pf); dirty(); renderAssets();
   }
@@ -441,8 +445,15 @@
   }
   function pickFiles(input) { return new Promise(ok => { input.value = ''; input.onchange = () => ok([...input.files]); input.click(); }); }
   // ---- nhập project từ zip ----
-  async function importZip(file) {
-    const t0 = toast('Đang đọc file zip…', 0);
+  // đọc toàn bộ file trong 1 folder được kéo vào -> [{ path, file }]
+  async function readDir(dir) {
+    const out = [], list = d => new Promise((ok, no) => { const r = d.createReader(), all = []; (function more() { r.readEntries(es => { if (!es.length) return ok(all); all.push(...es); more(); }, no); })(); });
+    const walkDir = async d => { for (const en of await list(d)) { if (en.isDirectory) await walkDir(en); else out.push({ path: en.fullPath.replace(/^\//, ''), file: await new Promise((ok, no) => en.file(ok, no)) }); } };
+    await walkDir(dir); return out;
+  }
+  const importZip = file => importSrc(file);
+  async function importSrc(file) {
+    const isDir = !!file.entries, t0 = toast(isDir ? 'Đang nhập folder…' : 'Đang đọc file zip…', 0);
     try {
       const res = await M.importer.parse(file, { uid, uuid4, defPS, loadImg }); let first = null, warn = [];
       for (const r of res) { const t = r.tree; t.name = uniq(S.root, t.name); S.root.children.push(t); idx = null; warn = warn.concat(r.warn);
@@ -453,31 +464,7 @@
       t0.remove(); dirty(); if (first) { S.folder = parentOf(first.id).id; openPrefab(first); } else renderAll();
       toast(`Đã nhập ${res.length} folder từ "${esc(file.name)}"` + (warn.length ? `<br><span style="color:var(--warn)">${warn.slice(0, 3).map(esc).join('<br>')}</span>` : ''), warn.length ? 7000 : 3000);
     } catch (err) { t0.remove(); if (!err.user) console.error(err);
-      modal(`${dlgHead('Không nhập được file zip')}<div class="bd"><p style="white-space:pre-wrap;color:var(--text)">${esc(err.user ? err.message : 'File zip không đúng định dạng project Cocos (' + err.message + ')')}</p><p>App nhận mọi file zip có file Cocos bên trong (prefab, animation clip, ảnh), không cần đúng cấu trúc folder.</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`); }
-  }
-  // ---- scene: chỉ lưu đường dẫn tới prefab và ảnh nền ----
-  const scenes = () => { const f = S.root.children.find(c => c.sys === 'Scenes'); return f ? f.children.filter(c => c.type === 'scene') : []; };
-  function saveScene(name) {
-    const f = sysFolder('Scenes'), ra = refAsset(), link = k => { const a = byId((S.scene[k] || [])[0]); return a ? pathOf(a) : null; };
-    const data = { canvas: { w: S.canvas.w, h: S.canvas.h }, tab: S.tab, prefabs: { particle: link('particle'), projectile: link('projectile') }, bgColor: S.bg || 0, hidePath: !!S.hidePath,
-      bg: ra ? { path: pathOf(ra), x: S.ref.x, y: S.ref.y, scale: S.ref.scale, opacity: S.ref.opacity, locked: S.ref.locked, hidden: !!S.ref.hidden } : null };
-    let sc = f.children.find(c => c.type === 'scene' && c.name === name); const had = !!sc;
-    if (sc) Object.assign(sc, data); else sc = add(f, Object.assign({ type: 'scene', name }, data));
-    dirty(); renderAssets(); toast(had ? `Đã cập nhật scene "${esc(name)}"` : `Đã lưu scene "${esc(name)}" vào folder Scenes`);
-  }
-  function loadScene(sc) {
-    const miss = [];
-    for (const k of ['particle', 'projectile']) { const path = sc.prefabs && sc.prefabs[k]; if (!path) { continue; } const a = resolve(path, 'prefab'); if (a) S.scene[k] = [a.id]; else { S.scene[k] = []; miss.push(path); } }
-    if (sc.bg) { const a = resolve(sc.bg.path, 'image'); if (a) S.ref = { img: a.id, x: sc.bg.x, y: sc.bg.y, scale: sc.bg.scale, opacity: sc.bg.opacity, locked: sc.bg.locked, hidden: !!sc.bg.hidden }; else { S.ref = null; miss.push(sc.bg.path); } } else S.ref = null;
-    if (sc.canvas) S.canvas = { w: sc.canvas.w, h: sc.canvas.h }; S.bg = sc.bgColor || 0; S.hidePath = !!sc.hidePath; if (sc.tab) S.tab = sc.tab;
-    select(scenePfs()[0] || null); restart(); fitAll(); dirty(); renderAll();
-    if (miss.length) modal(`${dlgHead('Scene thiếu file')}<div class="bd"><p>Các file sau đã bị xoá, đổi tên hoặc di chuyển nên không được nạp vào scene:</p><ul>${miss.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`);
-    else toast(`Đã mở scene "${esc(sc.name)}"`);
-  }
-  function sceneMenu(e) {
-    const r = e.currentTarget.getBoundingClientRect(), l = scenes();
-    ctxMenu(r.left, r.bottom + 4, [['Lưu scene…', async () => { const n = await ask('Lưu scene', 'Tên scene (trùng tên sẽ ghi đè). Scene chỉ lưu đường dẫn tới prefab đang mở và ảnh nền.', l.length ? l[l.length - 1].name : 'Scene_1', 'Lưu'); if (n) saveScene(clean(n)); }]]
-      .concat(l.length ? ['-'] : [], l.map(sc => ['Mở: ' + sc.name, () => loadScene(sc)])));
+      modal(`${dlgHead(isDir ? 'Không nhập được folder' : 'Không nhập được file zip')}<div class="bd"><p style="white-space:pre-wrap;color:var(--text)">${esc(err.user ? err.message : 'Không đọc được nội dung Cocos (' + err.message + ')')}</p><p>App nhận file zip hoặc folder có file Cocos bên trong (prefab, animation clip, ảnh), không cần đúng cấu trúc folder, nhưng mỗi file phải có file .meta đi kèm.</p></div><div class="ft"><button class="btn primary" data-close>Đóng</button></div>`); }
   }
   function folderMenu(f, x, y) {
     const items = [['Particle prefab mới', () => createPrefab('particle', f)], ['Projectile prefab mới', () => createPrefab('projectile', f)], '-',
@@ -491,7 +478,6 @@
   function fileMenu(a, x, y) {
     const items = [];
     if (a.type === 'prefab') items.push(['Mở', () => openPrefab(a)]);
-    if (a.type === 'scene') items.push(['Mở scene', () => loadScene(a)]);
     if (a.type === 'image') items.push(['Đặt làm ảnh nền', () => setRef(a)]);
     items.push(['Nhân bản (Ctrl+D)', () => dupAsset(a)]);
     items.push(['Đổi tên', () => renameAsset(a)], ['Xoá', async () => { if (await confirmDlg('Xoá', `Xoá "${esc(a.name)}"?`)) removeAsset(a); }]);
@@ -526,7 +512,7 @@
   $('#ftree').addEventListener('dblclick', e => { const r = e.target.closest('[data-fid]'); if (!r || e.target.closest('[data-caret]')) return; const c = S.collapsed || (S.collapsed = {}), id = r.dataset.fid; if (c[id]) delete c[id]; else c[id] = 1; dirty(); renderAssets(); });
   $('#ftree').addEventListener('contextmenu', e => { e.preventDefault(); const r = e.target.closest('[data-fid]'); if (r) { S.folder = r.dataset.fid; renderAssets(); folderMenu(byId(r.dataset.fid), e.clientX, e.clientY); } });
   $('#gridWrap').addEventListener('contextmenu', e => { e.preventDefault(); const t = e.target.closest('[data-aid]'), a = t && byId(t.dataset.aid); if (a && a.type !== 'folder') fileMenu(a, e.clientX, e.clientY); else folderMenu(a || byId(S.folder), e.clientX, e.clientY); });
-  $('#gridWrap').addEventListener('dblclick', e => { const t = e.target.closest('[data-aid]'), a = t && byId(t.dataset.aid); if (!a) return; if (a.type === 'folder') { S.folder = a.id; renderAssets(); } else if (a.type === 'prefab') openPrefab(a); else if (a.type === 'scene') loadScene(a); });
+  $('#gridWrap').addEventListener('dblclick', e => { const t = e.target.closest('[data-aid]'), a = t && byId(t.dataset.aid); if (!a) return; if (a.type === 'folder') { S.folder = a.id; renderAssets(); } else if (a.type === 'prefab') openPrefab(a); });
   $('#btnAddAsset').onclick = e => { const r = e.currentTarget.getBoundingClientRect(); folderMenu(byId(S.folder) || S.root, r.left - 180, r.bottom + 4); };
 
   // kéo asset (pointer events, có ghost)
@@ -562,7 +548,9 @@
   document.addEventListener('dragleave', e => { if (!e.relatedTarget) $$('.drop-on').forEach(x => x.classList.remove('drop-on')); });
   document.addEventListener('drop', async e => {
     if (![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); $$('.drop-on').forEach(x => x.classList.remove('drop-on'));
-    const zips = [...e.dataTransfer.files].filter(f => /\.zip$/i.test(f.name)); if (zips.length) { for (const z of zips) await importZip(z); return; }
+    const dirs = [...(e.dataTransfer.items || [])].map(it => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(en => en && en.isDirectory);   // phải lấy ngay trong sự kiện drop
+    const zips = [...e.dataTransfer.files].filter(f => /\.zip$/i.test(f.name));
+    if (dirs.length || zips.length) { for (const d of dirs) { const t0 = toast('Đang đọc folder…', 0); let en; try { en = await readDir(d); } finally { t0.remove(); } await importSrc({ name: d.name, entries: en }); } for (const z of zips) await importSrc(z); return; }
     const t = e.target.closest && e.target.closest('[data-drop]'), files = [...e.dataTransfer.files].filter(isImg); if (!t || !files.length) return;
     const [k, id] = t.dataset.drop.split(':');
     if (k === 'grid' || k === 'folder') { const f = byId(k === 'grid' ? S.folder : id); await importFiles(files, f); S.folder = f.id; dirty(); renderAssets(); toast(`Đã thêm ${files.length} ảnh vào "${esc(f.name)}"`); }
@@ -861,11 +849,11 @@
   $('#tabs').addEventListener('click', e => { const t = e.target.dataset.t; if (!t || t === S.tab) return; S.tab = t; select(scenePfs()[0] || null); restart(); renderAll(); dirty(); });
   $('#btnUndo').onclick = undo; $('#btnRedo').onclick = redo;
   $('#tools').addEventListener('click', e => { const t = e.target.dataset.tool; if (t) setTool(t); });
-  ['cw', 'ch'].forEach((id, i) => $('#' + id).addEventListener('input', e => { const v = parseInt(e.target.value); if (v > 0) { S.canvas[i ? 'h' : 'w'] = v; dirty(); } }));
+
   $('#btnPlay').onclick = () => { playing = !playing; $('#btnPlay').textContent = playing ? 'Dừng' : 'Phát'; };
   $('#btnRestart').onclick = () => { restart(); if (!playing) $('#btnPlay').click(); };
   $('#btnFit').onclick = fit;
-  $('#btnRef').onclick = refMenu; $('#btnScene').onclick = sceneMenu;
+  $('#btnRef').onclick = refMenu;
   $('#refApply').onclick = () => { S.ref.locked = true; dirty(); renderRef(); toast('Đã khoá ảnh nền. Bấm "Ảnh nền" để chỉnh lại hoặc gỡ.'); };
   $('#refDel').onclick = () => { S.ref = null; dirty(); renderRef(); };
   $('#refScale').addEventListener('input', e => { const v = parseFloat(e.target.value); if (v > 0) { S.ref.scale = v; dirty(); } });
@@ -906,7 +894,7 @@
         m.querySelector('#exF').onchange = upd; m.querySelector('#exGo').onclick = () => close(m.querySelector('#exF').value); m.querySelector('#exGo').focus(); });
     if (!r) return; dirty();
     try { const out = await M.exporter.build(byId(r), S.ver, all()); M.lastExport = out;
-      const a = document.createElement('a'); a.href = URL.createObjectURL(out.blob); a.download = out.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(out.blob); a.download = out.name; a.click(); if (api && api.setDirty) api.setDirty(false); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       toast(`Đã xuất <b>${esc(out.name)}</b>` + (out.warn.length ? `<br><span style="color:var(--warn)">Lưu ý: ${out.warn.slice(0, 3).map(esc).join('; ')}</span>` : ''), out.warn.length ? 7000 : 3000);
     } catch (err) { console.error(err); toast('Xuất thất bại: ' + esc(err.message), 6000); }
   }
@@ -940,7 +928,7 @@
 
   // ================= khởi động =================
   function renderPathBtn() { const b = $('#btnPath'); b.classList.toggle('hide', !scenePfs().some(p => p.kind === 'projectile')); b.classList.toggle('on', !S.hidePath); b.textContent = S.hidePath ? 'Hiện đường bay' : 'Ẩn đường bay'; }
-  function renderAll() { undoBtns(); applyLayout(); renderPathBtn(); renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); $('#cw').value = S.canvas.w; $('#ch').value = S.canvas.h; status(); }
+  function renderAll() { undoBtns(); applyLayout(); renderPathBtn(); renderRef(); renderTabs(); renderTree(); renderAssets(); renderProps(); status(); }
   function fitAll() { const t = S.tab; for (const k of ['particle', 'projectile']) { S.tab = k; fit(); } S.tab = t; }
   // project trống: chưa có folder hay prefab nào
   function emptyProject() {
@@ -961,11 +949,11 @@
       const card = (k, title, desc, main) => `<button class="start-card ${main ? 'main' : ''}" data-start="${k}"><i>${{ empty: IC.plus, sample: IC.spark, continue: IC.anim }[k]}</i><b>${title}</b><span>${desc}</span></button>`;
       const o = document.createElement('div'); o.id = 'start';
       o.innerHTML = `<div class="start-box"><img class="lock-logo" src="icon.png" alt=""><div class="lock-brand"><span class="m">M</span><span class="a"> Cocos Particle</span></div><p>Bạn muốn bắt đầu thế nào?</p>
-        <div class="start-cards">${hasSaved ? card('continue', 'Tiếp tục project đang làm', 'Mở lại đúng những gì bạn làm lần trước', true) : ''}${card('empty', 'Tạo file rỗng', 'Project trống: tự tạo prefab mới hoặc kéo file zip project vào')}${card('sample', 'Mở file mẫu', 'Có sẵn Coin_Burst (chuỗi hình đồng xu), 1 Projectile và ảnh nền')}</div>
-        ${hasSaved ? '<p class="start-warn">Chọn "Tạo file rỗng" hoặc "Mở file mẫu" sẽ thay thế project đang làm.</p>' : ''}</div><div class="lock-credit">Created by Mondiro</div><div class="win-drag"></div>`;
+        <div class="start-cards">${hasSaved ? card('continue', 'Quay lại project đang mở', 'Đóng màn hình này, giữ nguyên project hiện tại', true) : ''}${card('empty', 'Tạo file rỗng', 'Project trống: tự tạo prefab mới hoặc kéo file zip project vào')}${card('sample', 'Mở file mẫu', 'Có sẵn Coin_Burst (chuỗi hình đồng xu), 1 Projectile và ảnh nền')}</div>
+        <p class="start-warn">${hasSaved ? 'Chọn "Tạo file rỗng" hoặc "Mở file mẫu" sẽ thay thế project đang mở. ' : ''}App không tự lưu: muốn giữ thì bấm Xuất zip, lần sau kéo file zip vào lại.</p></div><div class="lock-credit">Created by Mondiro</div><div class="win-drag"></div>`;
       document.body.append(o);
       o.addEventListener('click', async e => { const b = e.target.closest('[data-start]'); if (!b) return; const k = b.dataset.start;
-        if (hasSaved && k !== 'continue' && !(await confirmDlg(k === 'empty' ? 'Tạo file rỗng' : 'Mở file mẫu', 'Project đang làm sẽ bị xoá và thay bằng ' + (k === 'empty' ? 'project trống' : 'project mẫu') + '. Tiếp tục?', 'Thay thế'))) return;
+        if (hasSaved && k !== 'continue' && !(await confirmDlg(k === 'empty' ? 'Tạo file rỗng' : 'Mở file mẫu', 'Project đang mở (phần chưa Xuất zip) sẽ mất và được thay bằng ' + (k === 'empty' ? 'project trống' : 'project mẫu') + '. Tiếp tục?', 'Thay thế'))) return;
         o.remove(); ok(k); });
       const f = o.querySelector('[data-start]'); if (f) f.focus();
     });
@@ -974,21 +962,20 @@
     if (choice === 'continue' && savedS) S = savedS;
     else { const keep = savedS || S || {}; if (choice === 'empty') emptyProject(); else await bootstrap();
       for (const k of ['ver', 'layout', 'ptab']) if (keep[k] !== undefined) S[k] = keep[k]; }
-    await prepare(); if (choice !== 'continue') save();
+    await prepare(); if (choice !== 'continue' && api && api.setDirty) api.setDirty(false);
   }
   async function init() {
     if (api) document.documentElement.classList.add('electron');
     M.ui = { confirm: (title, msg, ok) => confirmDlg(esc(title), esc(msg), esc(ok || 'OK')) };
     R = new M.Renderer($('#gl'));
-    const saved = await load(); let savedS = null;
-    if (saved) { try { savedS = JSON.parse(saved); if (!savedS.root || !savedS.canvas) throw 0; } catch (e) { savedS = null; } }
-    const force = { '#sample': 'sample', '#empty': 'empty', '#continue': 'continue' }[location.hash];   // dùng khi test
-    await applyStart(force || await startScreen(!!savedS), savedS);
+    const prefs = loadPrefs();
+    const force = { '#sample': 'sample', '#empty': 'empty' }[location.hash];   // dùng khi test
+    await applyStart(force || await startScreen(false), prefs);
     setTool('move');
     window.addEventListener('resize', renderTabs);
     requestAnimationFrame(t => { last = t; tick(t); });
     setTimeout(() => checkUpdate(false), 1200);
-    M.debug = { S: () => S, all, byId, exportBuild: (id, v) => M.exporter.build(byId(id), v, all()), makeSequence, cur, projectOf, importZip, saveScene, loadScene, scenes, renderAll, dirty, selNode, scene: scenePfs, hist: () => [hist.length, redoS.length] };
+    M.debug = { S: () => S, all, byId, exportBuild: (id, v) => M.exporter.build(byId(id), v, all()), makeSequence, cur, projectOf, importZip, importSrc, renderAll, dirty, selNode, scene: scenePfs, hist: () => [hist.length, redoS.length] };
   }
   init();
 })(window.M = window.M || {});

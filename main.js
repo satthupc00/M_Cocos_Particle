@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 const { initLicense } = require('./license.js');
 
-let win;
+let win, unsaved = false;   // unsaved: có thay đổi chưa Xuất zip (app không tự lưu project)
+ipcMain.on('dirty', (_e, v) => { unsaved = !!v; });
 const stateFile = () => path.join(app.getPath('userData'), 'window.json');
 const readState = () => { try { return JSON.parse(fs.readFileSync(stateFile(), 'utf8')); } catch (e) { return {}; } };
 
@@ -19,7 +20,8 @@ function create() {
   if (st.max) win.maximize();
   win.removeMenu();
   win.loadFile(path.join(__dirname, 'src/index.html'));
-  win.on('close', () => { try { fs.writeFileSync(stateFile(), JSON.stringify({ ...win.getNormalBounds(), max: win.isMaximized() })); } catch (e) { } });
+  win.on('close', e => {
+    if (unsaved) { const r = dialog.showMessageBoxSync(win, { type: 'warning', buttons: ['Thoát', 'Ở lại'], defaultId: 1, cancelId: 1, title: 'M Cocos Particle', message: 'Thoát app?', detail: 'App không tự lưu project. Những gì chưa Xuất zip sẽ mất.' }); if (r === 1) { e.preventDefault(); return; } } try { fs.writeFileSync(stateFile(), JSON.stringify({ ...win.getNormalBounds(), max: win.isMaximized() })); } catch (e) { } });
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
 }
 
@@ -36,7 +38,7 @@ ipcMain.handle('upd:check', async () => {
 });
 ipcMain.handle('upd:download', async () => { try { await autoUpdater.downloadUpdate(); } catch (e) { } });
 autoUpdater.on('download-progress', p => win && win.webContents.send('upd:progress', p.percent));
-autoUpdater.on('update-downloaded', () => autoUpdater.quitAndInstall(true, true));
+autoUpdater.on('update-downloaded', () => { unsaved = false; autoUpdater.quitAndInstall(true, true); });
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {

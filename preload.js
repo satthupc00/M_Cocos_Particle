@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('mapi', {
   whatsnew,
   check: () => ipcRenderer.invoke('upd:check'),
   download: () => ipcRenderer.invoke('upd:download'),
+  setDirty: v => ipcRenderer.send('dirty', !!v),
   onProgress: cb => ipcRenderer.on('upd:progress', (_e, p) => cb(p)),
   lic: {
     call: (channel, ...args) => /^(license|admin)-[a-z-]+$/.test(channel) ? ipcRenderer.invoke(channel, ...args) : Promise.resolve({ error: 'bad channel' }),

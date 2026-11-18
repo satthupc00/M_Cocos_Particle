@@ -17,9 +17,8 @@
   <div class="tools">
     <button class="btn ibtn" id="btnUndo" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
     <button class="btn ibtn" id="btnRedo" title="Làm lại (Ctrl+Y)" aria-label="Làm lại"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
-    <div class="cv no-drag" title="Kích thước khung canvas (chỉ để xem trước)">Canvas <input class="num" id="cw" type="number" min="1" aria-label="Chiều rộng canvas"> × <input class="num" id="ch" type="number" min="1" aria-label="Chiều cao canvas"></div>
     <button class="btn primary" id="btnExport" title="Xuất zip cho Cocos (Ctrl+E)"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Xuất zip</button>
-    <button class="btn ibtn" id="btnSet" title="Cài đặt" aria-label="Cài đặt"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+    <button class="btn ibtn" id="btnSet" title="Cài đặt" aria-label="Cài đặt"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
     <button class="btn ibtn upd" id="btnUpd" title="Kiểm tra cập nhật" aria-label="Kiểm tra cập nhật"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12A9 9 0 0 1 18.5 5.8L21 8M21 3v5h-5M3 21v-5h5"/></svg></button>
   </div>
 </header>
@@ -39,12 +38,11 @@
       <button class="btn" id="btnFit" title="Vừa khung (F)">Fit</button>
       <button class="btn" id="btnBg" title="Ẩn / hiện ảnh nền">Ẩn nền</button>
       <button class="btn hide" id="btnPath" title="Ẩn / hiện đường bay và điểm A, B trên khung xem trước">Ẩn đường bay</button>
-      <button class="btn" id="btnScene" title="Lưu / mở scene (prefab đang mở + ảnh nền)">Scene</button>
       <button class="btn" id="btnRef" title="Đặt 1 ảnh làm nền để ướm thử (không xuất vào Cocos)">Ảnh nền</button>
       <span class="zoom" id="zoom">100%</span>
     </div>
     <div class="refbar hide" id="refBar"><span>Ảnh nền</span><label>Tỉ lệ <input class="num" id="refScale" type="number" step="any" min="0.01" title="Phóng to / thu nhỏ ảnh nền"></label><label>Độ rõ % <input class="num" id="refOp" type="number" min="0" max="100" title="Độ rõ của ảnh nền (0–100)"></label><button class="btn primary" id="refApply" title="Khoá ảnh nền tại chỗ">Apply</button><button class="btn" id="refDel" title="Gỡ ảnh nền">Gỡ</button></div>
-    <div class="empty hide" id="empty"><b>Chưa mở prefab nào</b><span>Bấm đúp vào 1 prefab trong Assets để xem, hoặc kéo file zip Cocos vào app</span><span><kbd>Space</kbd> phát/dừng · <kbd>R</kbd> chạy lại · <kbd>F</kbd> vừa khung · <kbd>Ctrl+E</kbd> xuất zip</span></div>
+    <div class="empty hide" id="empty"><b>Chưa mở prefab nào</b><span>Bấm đúp vào 1 prefab trong Assets để xem, hoặc kéo file zip / folder Cocos vào app</span><span><kbd>Space</kbd> phát/dừng · <kbd>R</kbd> chạy lại · <kbd>F</kbd> vừa khung · <kbd>Ctrl+E</kbd> xuất zip</span></div>
     <div class="hint" id="hint">Lăn chuột: zoom · Giữ chuột phải hoặc phím cách + kéo: pan · Kéo chuột trái: di chuyển node đang chọn</div>
   </section>
 
